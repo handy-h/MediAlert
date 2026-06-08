@@ -2,15 +2,19 @@ package com.handy.medialert.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.handy.medialert.R
 import com.handy.medialert.data.entity.Medication
 import com.handy.medialert.ui.components.EmptyState
 import com.handy.medialert.viewmodel.MedicationViewModel
@@ -26,16 +30,17 @@ fun MergedAlertScreen(
     viewModel: MedicationViewModel = viewModel()
 ) {
     val medications by viewModel.activeMedications.collectAsStateWithLifecycle()
-    val mergedAlerts = calculateMergedAlerts(medications)
-    val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
+    val mergedAlerts = remember(medications) { calculateMergedAlerts(medications) }
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("M月d日") }
+    val alertList = remember(mergedAlerts) { mergedAlerts.toList() }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("合并购药提醒") },
+                title = { Text(stringResource(R.string.merged_alerts_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -43,8 +48,8 @@ fun MergedAlertScreen(
     ) { paddingValues ->
         if (mergedAlerts.isEmpty()) {
             EmptyState(
-                title = "暂无需要购药的药品",
-                subtitle = "所有药品库存充足",
+                title = stringResource(R.string.no_alerts),
+                subtitle = stringResource(R.string.no_alerts_subtitle),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -56,39 +61,37 @@ fun MergedAlertScreen(
                     .padding(paddingValues),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                mergedAlerts.forEach { (alertDate, meds) ->
+                items(alertList, key = { it.first }) { (alertDate, meds) ->
                     val dayOfWeek = alertDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE)
                     val isWorkday = alertDate.dayOfWeek.value <= 5
 
-                    item {
-                        Card(
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            )
+                                .padding(16.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            ) {
+                            Text(
+                                text = "📅 ${alertDate.format(dateFormatter)} $dayOfWeek ${if (isWorkday) "(工作日)" else "(周末)"}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            meds.forEach { med ->
+                                val depletionDate = med.depletionDate()
+                                val depletionDayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINESE)
                                 Text(
-                                    text = "📅 ${alertDate.format(dateFormatter)} $dayOfWeek ${if (isWorkday) "(工作日)" else "(周末)"}",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "• ${med.genericName}（${med.brandName ?: ""}）- ${depletionDate.format(dateFormatter)} $depletionDayOfWeek 耗尽",
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                meds.forEach { med ->
-                                    val depletionDate = med.depletionDate()
-                                    val depletionDayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINESE)
-                                    Text(
-                                        text = "• ${med.genericName}（${med.brandName ?: ""}）- ${depletionDate.format(dateFormatter)} $depletionDayOfWeek 耗尽",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
                             }
                         }
                     }

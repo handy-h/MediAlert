@@ -2,17 +2,17 @@ package com.handy.medialert.viewmodel
 
 import android.app.Application
 import android.content.Context
-import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.handy.medialert.MediAlertApplication
 import com.handy.medialert.alarm.AlarmScheduler
 import com.handy.medialert.calendar.CalendarManager
-import com.handy.medialert.data.database.AppDatabase
 import com.handy.medialert.data.entity.FrequencyType
 import com.handy.medialert.data.entity.Medication
-import com.handy.medialert.repository.MedicationRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.opencsv.CSVWriter
 import java.io.File
 import java.io.FileWriter
@@ -20,12 +20,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class MedicationViewModel(application: Application) : AndroidViewModel(application) {
-    private val database = AppDatabase.getDatabase(application)
-    private val repository = MedicationRepository(
-        database.medicationDao(),
-        database.stockLogDao(),
-        application
-    )
+    private val app = application as MediAlertApplication
+    private val repository = app.repository
     private val alarmScheduler = AlarmScheduler(application)
     private val calendarManager = CalendarManager(application)
 
@@ -84,13 +80,8 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun getMedicationById(id: Long): Medication? {
-        var result: Medication? = null
-        viewModelScope.launch {
-            result = repository.getMedicationById(id)
-        }
-        return result
-    }
+    fun getMedicationFlow(id: Long): Flow<Medication?> =
+        flow { emit(repository.getMedicationById(id)) }
 
     fun addStock(medicationId: Long, quantity: Double, reason: String?) {
         viewModelScope.launch {
@@ -155,46 +146,49 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         // 注意：日历事件取消需要存储eventId，这里简化处理
     }
 
-    fun exportToCsv(context: Context): String? {
-        return try {
-            val medications = activeMedications.value
-            if (medications.isEmpty()) return null
+    suspend fun exportToCsv(context: Context): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val medications = activeMedications.value
+                if (medications.isEmpty()) return@withContext null
 
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val fileName = "药箱库存_${System.currentTimeMillis()}.csv"
-            val file = File(downloadsDir, fileName)
+                val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)
+                    ?: context.filesDir
+                val fileName = "药箱库存_${System.currentTimeMillis()}.csv"
+                val file = File(dir, fileName)
 
-            CSVWriter(FileWriter(file)).use { writer ->
-                // 表头
-                writer.writeNext(arrayOf(
-                    "通用名", "商品名", "规格", "包装", "剂型", "每包装数量",
-                    "当前库存", "用药频率", "耗尽日期", "状态"
-                ))
-
-                // 数据
-                medications.forEach { med ->
-                    val freqText = when (med.frequencyType) {
-                        FrequencyType.EVERY_X_DAYS -> "每${med.frequencyValue}天${med.dailyDosage}${med.dosageForm}"
-                        FrequencyType.EVERY_XTH_DAY -> "每隔${med.frequencyValue}天${med.dailyDosage}${med.dosageForm}"
-                    }
+                CSVWriter(FileWriter(file)).use { writer ->
+                    // 表头
                     writer.writeNext(arrayOf(
-                        med.genericName,
-                        med.brandName ?: "",
-                        med.specification ?: "",
-                        med.packageUnit,
-                        med.dosageForm,
-                        med.packageSize.toString(),
-                        med.getStockDisplay(),
-                        freqText,
-                        med.depletionDate().toString(),
-                        if (med.isActive) "启用" else "停用"
+                        "通用名", "商品名", "规格", "包装", "剂型", "每包装数量",
+                        "当前库存", "用药频率", "耗尽日期", "状态"
                     ))
+
+                    // 数据
+                    medications.forEach { med ->
+                        val freqText = when (med.frequencyType) {
+                            FrequencyType.EVERY_X_DAYS -> "每${med.frequencyValue}天${med.dailyDosage}${med.dosageForm}"
+                            FrequencyType.EVERY_XTH_DAY -> "每隔${med.frequencyValue}天${med.dailyDosage}${med.dosageForm}"
+                        }
+                        writer.writeNext(arrayOf(
+                            med.genericName,
+                            med.brandName ?: "",
+                            med.specification ?: "",
+                            med.packageUnit,
+                            med.dosageForm,
+                            med.packageSize.toString(),
+                            med.getStockDisplay(),
+                            freqText,
+                            med.depletionDate().toString(),
+                            if (med.isActive) "启用" else "停用"
+                        ))
+                    }
                 }
+                file.absolutePath
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
             }
-            file.absolutePath
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
         }
     }
 }

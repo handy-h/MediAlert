@@ -4,6 +4,8 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import com.handy.medialert.data.entity.Medication
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -30,11 +32,29 @@ class AlarmScheduler(private val context: Context) {
 
         val triggerAtMillis = alertTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent
-        )
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                // 精确闹钟权限未授予，使用非精确闹钟作为降级方案
+                alarmManager.set(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+                return
+            }
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        } catch (e: SecurityException) {
+            Log.w("AlarmScheduler", "精确闹钟权限不足，降级为非精确闹钟", e)
+            alarmManager.set(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        }
     }
 
     fun cancelAlarm(medicationId: Long) {

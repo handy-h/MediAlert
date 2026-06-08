@@ -6,16 +6,18 @@ import com.handy.medialert.data.dao.StockLogDao
 import com.handy.medialert.data.entity.Medication
 import com.handy.medialert.data.entity.StockLog
 import com.handy.medialert.data.entity.StockLogType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 
 class MedicationRepository(
     private val medicationDao: MedicationDao,
     private val stockLogDao: StockLogDao,
     private val context: Context
 ) {
-    fun getAllActiveMedications(): Flow<List<Medication>> = medicationDao.getAllActive()
-    fun getAllInactiveMedications(): Flow<List<Medication>> = medicationDao.getAllInactive()
-    fun getAllMedications(): Flow<List<Medication>> = medicationDao.getAll()
+    fun getAllActiveMedications(): Flow<List<Medication>> = medicationDao.getAllActive().flowOn(Dispatchers.IO)
+    fun getAllInactiveMedications(): Flow<List<Medication>> = medicationDao.getAllInactive().flowOn(Dispatchers.IO)
+    fun getAllMedications(): Flow<List<Medication>> = medicationDao.getAll().flowOn(Dispatchers.IO)
     suspend fun getMedicationById(id: Long): Medication? = medicationDao.getById(id)
 
     suspend fun addMedication(medication: Medication): Long {

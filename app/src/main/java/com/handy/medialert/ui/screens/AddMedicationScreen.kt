@@ -9,9 +9,11 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.handy.medialert.R
 import com.handy.medialert.data.entity.FrequencyType
 import com.handy.medialert.viewmodel.MedicationViewModel
 import java.time.LocalDate
@@ -37,6 +39,10 @@ fun AddMedicationScreen(
     var startDate by remember { mutableStateOf(LocalDate.now()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
+    // 验证错误状态
+    var frequencyValueError by remember { mutableStateOf(false) }
+    var dailyDosageError by remember { mutableStateOf(false) }
+
     val packageUnits = listOf("盒", "支", "瓶")
     val dosageForms = listOf("片", "粒", "ml", "g")
     var packageUnitExpanded by remember { mutableStateOf(false) }
@@ -45,10 +51,10 @@ fun AddMedicationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("添加药品") },
+                title = { Text(stringResource(R.string.add_medication)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -65,7 +71,7 @@ fun AddMedicationScreen(
             OutlinedTextField(
                 value = genericName,
                 onValueChange = { genericName = it },
-                label = { Text("通用名 *") },
+                label = { Text(stringResource(R.string.generic_name_required)) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -73,7 +79,7 @@ fun AddMedicationScreen(
             OutlinedTextField(
                 value = brandName,
                 onValueChange = { brandName = it },
-                label = { Text("商品名") },
+                label = { Text(stringResource(R.string.brand_name)) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -81,13 +87,13 @@ fun AddMedicationScreen(
             OutlinedTextField(
                 value = specification,
                 onValueChange = { specification = it },
-                label = { Text("规格（如：80/12.5）") },
+                label = { Text(stringResource(R.string.specification_hint)) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
 
             // 包装信息
-            Text("包装信息", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.package_info), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -101,7 +107,7 @@ fun AddMedicationScreen(
                         value = packageUnit,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("包装") },
+                        label = { Text(stringResource(R.string.package_label)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = packageUnitExpanded) },
                         modifier = Modifier.menuAnchor()
                     )
@@ -133,7 +139,7 @@ fun AddMedicationScreen(
                         value = dosageForm,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("剂型") },
+                        label = { Text(stringResource(R.string.dosage_form_label)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dosageFormExpanded) },
                         modifier = Modifier.menuAnchor()
                     )
@@ -165,7 +171,7 @@ fun AddMedicationScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 当前库存
-            Text("当前库存", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.current_stock), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
@@ -187,7 +193,7 @@ fun AddMedicationScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 用药频率
-            Text("用药频率", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.medication_frequency), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -197,12 +203,12 @@ fun AddMedicationScreen(
                 FilterChip(
                     selected = frequencyType == FrequencyType.EVERY_X_DAYS,
                     onClick = { frequencyType = FrequencyType.EVERY_X_DAYS },
-                    label = { Text("每X天") }
+                    label = { Text(stringResource(R.string.every_x_days)) }
                 )
                 FilterChip(
                     selected = frequencyType == FrequencyType.EVERY_XTH_DAY,
                     onClick = { frequencyType = FrequencyType.EVERY_XTH_DAY },
-                    label = { Text("每隔X天") }
+                    label = { Text(stringResource(R.string.every_xth_day)) }
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -219,9 +225,14 @@ fun AddMedicationScreen(
                 )
                 OutlinedTextField(
                     value = frequencyValue,
-                    onValueChange = { frequencyValue = it.filter { c -> c.isDigit() } },
+                    onValueChange = {
+                        frequencyValue = it.filter { c -> c.isDigit() }
+                        frequencyValueError = false
+                    },
                     modifier = Modifier.width(80.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = frequencyValueError,
+                    supportingText = if (frequencyValueError) {{ Text(stringResource(R.string.error_frequency_must_be_positive)) }} else null
                 )
                 Text(
                     when (frequencyType) {
@@ -232,10 +243,15 @@ fun AddMedicationScreen(
                 Spacer(modifier = Modifier.width(16.dp))
                 OutlinedTextField(
                     value = dailyDosage,
-                    onValueChange = { dailyDosage = it },
-                    label = { Text("剂量") },
+                    onValueChange = {
+                        dailyDosage = it
+                        dailyDosageError = false
+                    },
+                    label = { Text(stringResource(R.string.dosage_label)) },
                     modifier = Modifier.width(100.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = dailyDosageError,
+                    supportingText = if (dailyDosageError) {{ Text(stringResource(R.string.error_invalid_dosage)) }} else null
                 )
                 Text(dosageForm)
             }
@@ -250,7 +266,7 @@ fun AddMedicationScreen(
                     checked = hasStartDate,
                     onCheckedChange = { hasStartDate = it }
                 )
-                Text("设置开始服用日期（不勾选则立即开始）")
+                Text(stringResource(R.string.set_start_date))
             }
             if (hasStartDate) {
                 OutlinedButton(
@@ -265,12 +281,19 @@ fun AddMedicationScreen(
             // 保存按钮
             Button(
                 onClick = {
+                    val freq = frequencyValue.toIntOrNull()
+                    val dosage = dailyDosage.toDoubleOrNull()
+
+                    // 验证频率值
+                    frequencyValueError = freq == null || freq <= 0
+                    dailyDosageError = dosage == null || dosage <= 0
+
+                    if (frequencyValueError || dailyDosageError) return@Button
+
                     val pkgSize = packageSize.toIntOrNull() ?: return@Button
                     val pkgs = currentStockPackages.toIntOrNull() ?: 0
                     val units = currentStockUnits.toIntOrNull() ?: 0
                     val totalStock = pkgs * pkgSize + units
-                    val freq = frequencyValue.toIntOrNull() ?: 1
-                    val dosage = dailyDosage.toDoubleOrNull() ?: 1.0
 
                     viewModel.addMedication(
                         genericName = genericName,
@@ -290,7 +313,7 @@ fun AddMedicationScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = genericName.isNotBlank() && packageSize.isNotBlank()
             ) {
-                Text("保存药品")
+                Text(stringResource(R.string.save_medication))
             }
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -311,12 +334,12 @@ fun AddMedicationScreen(
                     }
                     showDatePicker = false
                 }) {
-                    Text("确定")
+                    Text(stringResource(R.string.confirm))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         ) {

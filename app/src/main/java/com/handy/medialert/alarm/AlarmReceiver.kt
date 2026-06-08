@@ -34,10 +34,10 @@ class AlarmReceiver : BroadcastReceiver() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "药品库存预警",
+                context.getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "药品库存即将耗尽的紧急提醒"
+                description = context.getString(R.string.notification_channel_desc)
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -54,14 +54,14 @@ class AlarmReceiver : BroadcastReceiver() {
         )
 
         val title = when (alertType) {
-            "1day" -> "⏰ 药品明天耗尽"
-            else -> "药品库存预警"
+            "1day" -> context.getString(R.string.notification_title_1day)
+            else -> context.getString(R.string.notification_title_generic)
         }
 
-        val content = "$medicationName 库存将在明天耗尽，请及时购药补充。"
+        val content = context.getString(R.string.notification_content, medicationName)
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
