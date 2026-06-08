@@ -304,8 +304,8 @@ fun AddMedicationScreen(
                         packageSize = pkgSize,
                         currentStock = totalStock.toDouble(),
                         frequencyType = frequencyType,
-                        frequencyValue = freq,
-                        dailyDosage = dosage,
+                        frequencyValue = freq!!,
+                        dailyDosage = dosage!!,
                         startDate = if (hasStartDate) startDate else null
                     )
                     onNavigateBack()

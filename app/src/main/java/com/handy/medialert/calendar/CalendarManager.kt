@@ -64,7 +64,7 @@ class CalendarManager(private val context: Context) {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
             put(CalendarContract.Events.HAS_ALARM, 1)
-            put(CalendarContract.Events.RRULE, null) // 一次性事件
+            put(CalendarContract.Events.RRULE, null as String?) // 一次性事件
         }
 
         val uri: Uri? = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)

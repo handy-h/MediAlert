@@ -2,7 +2,6 @@ package com.handy.medialert.ui.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.activity.compose.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -97,7 +96,7 @@ fun MediAlertTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val activity = view.context as Activity
-            activity.enableEdgeToEdge()
+            WindowCompat.setDecorFitsSystemWindows(activity.window, false)
             WindowCompat.getInsetsController(activity.window, view).isAppearanceLightStatusBars = darkTheme
         }
     }

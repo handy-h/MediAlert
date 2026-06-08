@@ -41,6 +41,7 @@ fun SettingsScreen(
     var calendars by remember { mutableStateOf(calendarManager.getCalendars()) }
 
     // 权限请求
+    val calendarPermissionNeeded = stringResource(R.string.calendar_permission_needed)
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -51,7 +52,7 @@ fun SettingsScreen(
                 showCalendarDialog = true
             }
             else -> {
-                Toast.makeText(context, stringResource(R.string.calendar_permission_needed), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, calendarPermissionNeeded, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -103,9 +104,10 @@ fun SettingsScreen(
                 }
             )
 
-            HorizontalDivider()
+            Divider()
 
             // 数据导出
+            val exportFailed = stringResource(R.string.export_failed)
             ListItem(
                 headlineContent = { Text(stringResource(R.string.export_data)) },
                 supportingContent = { Text(stringResource(R.string.export_description)) },
@@ -116,10 +118,9 @@ fun SettingsScreen(
                     if (!isExporting) {
                         isExporting = true
                         exportPath = ""
-                        val failedText = stringResource(R.string.export_failed)
                         coroutineScope.launch {
                             val path = viewModel.exportToCsv(context)
-                            exportPath = path ?: failedText
+                            exportPath = path ?: exportFailed
                             isExporting = false
                         }
                     }
@@ -142,7 +143,7 @@ fun SettingsScreen(
                 )
             }
 
-            HorizontalDivider()
+            Divider()
 
             // 关于
             ListItem(

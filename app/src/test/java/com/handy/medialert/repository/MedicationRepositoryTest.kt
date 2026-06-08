@@ -8,6 +8,7 @@ import com.handy.medialert.data.entity.Medication
 import com.handy.medialert.data.entity.StockLog
 import com.handy.medialert.data.entity.StockLogType
 import io.mockk.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -49,31 +50,31 @@ class MedicationRepositoryTest {
     // ============================================================
 
     @Test
-    fun getAllActiveMedications_delegatesToDao() {
-        val expected = flowOf(listOf(sampleMedication))
-        every { medicationDao.getAllActive() } returns expected
+    fun getAllActiveMedications_delegatesToDao() = runTest {
+        val expected = listOf(sampleMedication)
+        every { medicationDao.getAllActive() } returns flowOf(expected)
 
-        val result = repository.getAllActiveMedications()
+        val result = repository.getAllActiveMedications().first()
         assertEquals(expected, result)
         verify { medicationDao.getAllActive() }
     }
 
     @Test
-    fun getAllInactiveMedications_delegatesToDao() {
-        val expected = flowOf(emptyList<Medication>())
-        every { medicationDao.getAllInactive() } returns expected
+    fun getAllInactiveMedications_delegatesToDao() = runTest {
+        val expected = emptyList<Medication>()
+        every { medicationDao.getAllInactive() } returns flowOf(expected)
 
-        val result = repository.getAllInactiveMedications()
+        val result = repository.getAllInactiveMedications().first()
         assertEquals(expected, result)
         verify { medicationDao.getAllInactive() }
     }
 
     @Test
-    fun getAllMedications_delegatesToDao() {
-        val expected = flowOf(listOf(sampleMedication))
-        every { medicationDao.getAll() } returns expected
+    fun getAllMedications_delegatesToDao() = runTest {
+        val expected = listOf(sampleMedication)
+        every { medicationDao.getAll() } returns flowOf(expected)
 
-        val result = repository.getAllMedications()
+        val result = repository.getAllMedications().first()
         assertEquals(expected, result)
         verify { medicationDao.getAll() }
     }
