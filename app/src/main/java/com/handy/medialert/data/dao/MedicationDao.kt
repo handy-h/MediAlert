@@ -15,6 +15,9 @@ interface MedicationDao {
     @Query("SELECT * FROM medications ORDER BY createdAt DESC")
     fun getAll(): Flow<List<Medication>>
 
+    @Query("SELECT * FROM medications WHERE isActive = 1")
+    suspend fun getAllActiveSync(): List<Medication>
+
     @Query("SELECT * FROM medications WHERE id = :id")
     suspend fun getById(id: Long): Medication?
 

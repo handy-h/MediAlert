@@ -6,11 +6,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.handy.medialert.R
 import com.handy.medialert.data.entity.Medication
 import com.handy.medialert.ui.theme.NormalGreen
 import com.handy.medialert.ui.theme.UrgentRed
@@ -30,12 +33,12 @@ fun MedicationCard(
     val daysLeft = medication.daysUntilDepletion()
     val depletionDate = medication.depletionDate()
     val dayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINESE)
-    val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("M月d日") }
 
     val (statusColor, statusText) = when {
-        daysLeft <= 1 -> UrgentRed to "${daysLeft}天后耗尽"
-        daysLeft <= 4 -> WarningYellow to "${daysLeft}天后耗尽"
-        else -> NormalGreen to "${daysLeft}天后耗尽"
+        daysLeft <= 1 -> UrgentRed to stringResource(R.string.days_until_depleted, daysLeft)
+        daysLeft <= 4 -> WarningYellow to stringResource(R.string.days_until_depleted, daysLeft)
+        else -> NormalGreen to stringResource(R.string.days_until_depleted, daysLeft)
     }
 
     Card(
@@ -131,7 +134,7 @@ fun MedicationCard(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("补货")
+                    Text(stringResource(R.string.restock))
                 }
                 OutlinedButton(
                     onClick = onReduceStock,
@@ -139,7 +142,7 @@ fun MedicationCard(
                 ) {
                     Icon(Icons.Default.Remove, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("消耗")
+                    Text(stringResource(R.string.consume))
                 }
                 OutlinedButton(
                     onClick = onDeactivate,
@@ -147,7 +150,7 @@ fun MedicationCard(
                 ) {
                     Icon(Icons.Default.Pause, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("停用")
+                    Text(stringResource(R.string.deactivate))
                 }
             }
         }

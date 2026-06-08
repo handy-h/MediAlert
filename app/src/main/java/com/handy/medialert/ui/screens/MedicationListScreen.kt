@@ -11,9 +11,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.handy.medialert.R
 import com.handy.medialert.data.entity.Medication
 import com.handy.medialert.ui.components.EmptyState
 import com.handy.medialert.ui.components.MedicationCard
@@ -38,30 +40,30 @@ fun MedicationListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("药箱库存管家") },
+                title = { Text(stringResource(R.string.title_home)) },
                 actions = {
                     IconButton(onClick = onViewMergedAlerts) {
-                        Icon(Icons.Default.Notifications, contentDescription = "合并提醒")
+                        Icon(Icons.Default.Notifications, contentDescription = stringResource(R.string.view_merged_alerts))
                     }
                     IconButton(onClick = onViewInactive) {
-                        Icon(Icons.Default.Archive, contentDescription = "已停用药品")
+                        Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.view_inactive))
                     }
                     IconButton(onClick = onSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "设置")
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddMedication) {
-                Icon(Icons.Default.Add, contentDescription = "添加药品")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_medication))
             }
         }
     ) { paddingValues ->
         if (medications.isEmpty()) {
             EmptyState(
-                title = "暂无药品",
-                subtitle = "点击右下角按钮添加您的第一盒药品",
+                title = stringResource(R.string.no_medications),
+                subtitle = stringResource(R.string.no_medications_hint),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -98,7 +100,7 @@ fun MedicationListScreen(
 
     if (showAddStockDialog && selectedMedication != null) {
         StockInputDialog(
-            title = "补充库存",
+            title = stringResource(R.string.stock_label),
             medication = selectedMedication!!,
             isAddition = true,
             onConfirm = { quantity, reason ->

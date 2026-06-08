@@ -9,8 +9,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.handy.medialert.R
 import com.handy.medialert.viewmodel.MedicationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -20,7 +23,8 @@ fun EditMedicationScreen(
     onNavigateBack: () -> Unit,
     viewModel: MedicationViewModel = viewModel()
 ) {
-    val medication by remember { mutableStateOf(viewModel.getMedicationById(medicationId)) }
+    val medication by viewModel.getMedicationFlow(medicationId)
+        .collectAsStateWithLifecycle(initialValue = null)
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     medication?.let { med ->
@@ -31,15 +35,15 @@ fun EditMedicationScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("编辑药品") },
+                    title = { Text(stringResource(R.string.edit_medication)) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     },
                     actions = {
                         IconButton(onClick = { showDeleteConfirm = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
                         }
                     }
                 )
@@ -55,7 +59,7 @@ fun EditMedicationScreen(
                 OutlinedTextField(
                     value = genericName,
                     onValueChange = { genericName = it },
-                    label = { Text("通用名") },
+                    label = { Text(stringResource(R.string.generic_name)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -63,7 +67,7 @@ fun EditMedicationScreen(
                 OutlinedTextField(
                     value = brandName,
                     onValueChange = { brandName = it },
-                    label = { Text("商品名") },
+                    label = { Text(stringResource(R.string.brand_name)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -71,7 +75,7 @@ fun EditMedicationScreen(
                 OutlinedTextField(
                     value = specification,
                     onValueChange = { specification = it },
-                    label = { Text("规格") },
+                    label = { Text(stringResource(R.string.specification)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -89,7 +93,7 @@ fun EditMedicationScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("保存修改")
+                    Text(stringResource(R.string.save_changes))
                 }
             }
         }
@@ -98,8 +102,8 @@ fun EditMedicationScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除这个药品吗？此操作不可撤销。") },
+            title = { Text(stringResource(R.string.confirm_delete)) },
+            text = { Text(stringResource(R.string.delete_confirm_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -107,12 +111,12 @@ fun EditMedicationScreen(
                         onNavigateBack()
                     }
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

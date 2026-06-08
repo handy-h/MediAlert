@@ -1,3 +1,84 @@
 <resources>
     <string name="app_name">药箱库存管家</string>
+
+    <!-- 主界面 -->
+    <string name="title_home">药箱库存管家</string>
+    <string name="add_medication">添加药品</string>
+    <string name="view_merged_alerts">合并购药提醒</string>
+    <string name="view_inactive">已停用药品</string>
+    <string name="settings">设置</string>
+    <string name="no_medications">暂无药品</string>
+    <string name="no_medications_hint">点击右下角按钮添加您的第一盒药品</string>
+
+    <!-- 药品卡片 -->
+    <string name="restock">补货</string>
+    <string name="consume">消耗</string>
+    <string name="deactivate">停用</string>
+    <string name="days_until_depleted">%d天后耗尽</string>
+
+    <!-- 编辑药品 -->
+    <string name="edit_medication">编辑药品</string>
+    <string name="generic_name">通用名</string>
+    <string name="brand_name">商品名</string>
+    <string name="specification">规格</string>
+    <string name="save_changes">保存修改</string>
+    <string name="confirm_delete">确认删除</string>
+    <string name="delete_confirm_message">确定要删除这个药品吗？此操作不可撤销。</string>
+    <string name="delete">删除</string>
+
+    <!-- 添加药品 -->
+    <string name="generic_name_required">通用名 *</string>
+    <string name="specification_hint">规格（如：80/12.5）</string>
+    <string name="package_info">包装信息</string>
+    <string name="package_label">包装</string>
+    <string name="dosage_form_label">剂型</string>
+    <string name="current_stock">当前库存</string>
+    <string name="medication_frequency">用药频率</string>
+    <string name="every_x_days">每X天</string>
+    <string name="every_xth_day">每隔X天</string>
+    <string name="dosage_label">剂量</string>
+    <string name="set_start_date">设置开始服用日期（不勾选则立即开始）</string>
+    <string name="save_medication">保存药品</string>
+    <string name="error_frequency_must_be_positive">频率值必须大于0</string>
+    <string name="error_invalid_dosage">请输入有效剂量</string>
+    <string name="confirm">确定</string>
+
+    <!-- 设置 -->
+    <string name="calendar_account">日历账户</string>
+    <string name="calendar_not_set">未设置（提醒将使用默认日历）</string>
+    <string name="select_calendar">选择日历账户</string>
+    <string name="export_data">导出数据</string>
+    <string name="export_description">将药品数据导出为CSV文件</string>
+    <string name="exporting">正在导出...</string>
+    <string name="export_failed">导出失败</string>
+    <string name="about">关于</string>
+    <string name="about_text">药箱库存管家 v1.0</string>
+    <string name="calendar_permission_needed">需要日历权限才能设置提醒</string>
+
+    <!-- 合并提醒 -->
+    <string name="merged_alerts_title">合并购药提醒</string>
+    <string name="no_alerts">暂无需要购药的药品</string>
+    <string name="no_alerts_subtitle">所有药品库存充足</string>
+
+    <!-- 已停用 -->
+    <string name="inactive_medications">已停用药品</string>
+    <string name="no_inactive">暂无停用药品</string>
+
+    <!-- 通知 -->
+    <string name="notification_channel_name">药品库存预警</string>
+    <string name="notification_channel_desc">药品库存即将耗尽的紧急提醒</string>
+    <string name="notification_title_1day">⏰ 药品明天耗尽</string>
+    <string name="notification_title_generic">药品库存预警</string>
+    <string name="notification_content">%s 库存将在明天耗尽，请及时购药补充。</string>
+
+    <!-- 权限 -->
+    <string name="exact_alarm_permission_title">需要精确闹钟权限</string>
+    <string name="exact_alarm_permission_message">药箱库存管家需要精确闹钟权限才能准时发送药品耗尽提醒，请在系统设置中开启此权限。</string>
+    <string name="go_to_settings">前往设置</string>
+    <string name="later">稍后</string>
+
+    <!-- 通用 -->
+    <string name="cancel">取消</string>
+    <string name="back">返回</string>
+    <string name="stock_label">补充库存</string>
 </resources>

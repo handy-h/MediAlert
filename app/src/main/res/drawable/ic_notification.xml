@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 药丸图标 - 白色轮廓，符合 Android 5.0+ 通知图标规范 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.22,11.29l5.07,-5.07a5.0,5.0 0,0 1,7.07 7.07l-5.07,5.07a5.0,5.0 0,0 1,-7.07 -7.07zM9.29,6.22l-5.07,5.07a3.0,3.0 0,0 0,4.24 4.24l5.07,-5.07"
+        android:strokeWidth="0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14.78,12.71l5.07,-5.07a5.0,5.0 0,0 0,-7.07 -7.07l-5.07,5.07a5.0,5.0 0,0 0,7.07 7.07z"
+        android:strokeWidth="0" />
+</vector>

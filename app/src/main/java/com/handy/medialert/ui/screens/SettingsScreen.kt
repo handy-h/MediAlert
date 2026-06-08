@@ -15,11 +15,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.handy.medialert.R
 import com.handy.medialert.calendar.CalendarManager
 import com.handy.medialert.viewmodel.MedicationViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,11 +32,13 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val calendarManager = remember { CalendarManager(context) }
+    val coroutineScope = rememberCoroutineScope()
     var selectedCalendarId by remember { mutableStateOf<Long?>(null) }
     var showCalendarDialog by remember { mutableStateOf(false) }
     var exportPath by remember { mutableStateOf("") }
+    var isExporting by remember { mutableStateOf(false) }
 
-    val calendars = remember { calendarManager.getCalendars() }
+    var calendars by remember { mutableStateOf(calendarManager.getCalendars()) }
 
     // 权限请求
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -42,10 +47,11 @@ fun SettingsScreen(
         when {
             permissions[Manifest.permission.READ_CALENDAR] == true &&
             permissions[Manifest.permission.WRITE_CALENDAR] == true -> {
+                calendars = calendarManager.getCalendars()
                 showCalendarDialog = true
             }
             else -> {
-                Toast.makeText(context, "需要日历权限才能设置提醒", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, stringResource(R.string.calendar_permission_needed), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -53,10 +59,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -70,12 +76,12 @@ fun SettingsScreen(
         ) {
             // 日历设置
             ListItem(
-                headlineContent = { Text("日历账户") },
+                headlineContent = { Text(stringResource(R.string.calendar_account)) },
                 supportingContent = {
                     Text(
                         selectedCalendarId?.let { id ->
                             calendars.find { it.id == id }?.displayName ?: "已选择"
-                        } ?: "未设置（提醒将使用默认日历）"
+                        } ?: stringResource(R.string.calendar_not_set)
                     )
                 },
                 leadingContent = {
@@ -97,20 +103,36 @@ fun SettingsScreen(
                 }
             )
 
-            Divider()
+            HorizontalDivider()
 
             // 数据导出
             ListItem(
-                headlineContent = { Text("导出数据") },
-                supportingContent = { Text("将药品数据导出为CSV文件") },
+                headlineContent = { Text(stringResource(R.string.export_data)) },
+                supportingContent = { Text(stringResource(R.string.export_description)) },
                 leadingContent = {
                     Icon(Icons.Default.FileDownload, contentDescription = null)
                 },
                 modifier = Modifier.clickable {
-                    val path = viewModel.exportToCsv(context)
-                    exportPath = path ?: "导出失败"
+                    if (!isExporting) {
+                        isExporting = true
+                        exportPath = ""
+                        val failedText = stringResource(R.string.export_failed)
+                        coroutineScope.launch {
+                            val path = viewModel.exportToCsv(context)
+                            exportPath = path ?: failedText
+                            isExporting = false
+                        }
+                    }
                 }
             )
+
+            if (isExporting) {
+                Text(
+                    text = stringResource(R.string.exporting),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
 
             if (exportPath.isNotEmpty()) {
                 Text(
@@ -120,12 +142,12 @@ fun SettingsScreen(
                 )
             }
 
-            Divider()
+            HorizontalDivider()
 
             // 关于
             ListItem(
-                headlineContent = { Text("关于") },
-                supportingContent = { Text("药箱库存管家 v1.0") }
+                headlineContent = { Text(stringResource(R.string.about)) },
+                supportingContent = { Text(stringResource(R.string.about_text)) }
             )
         }
     }
@@ -133,7 +155,7 @@ fun SettingsScreen(
     if (showCalendarDialog) {
         AlertDialog(
             onDismissRequest = { showCalendarDialog = false },
-            title = { Text("选择日历账户") },
+            title = { Text(stringResource(R.string.select_calendar)) },
             text = {
                 Column {
                     calendars.forEach { calendar ->
@@ -153,7 +175,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showCalendarDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

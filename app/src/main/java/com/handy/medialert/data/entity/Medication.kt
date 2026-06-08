@@ -22,9 +22,12 @@ data class Medication(
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 ) {
-    fun dailyConsumption(): Double = when (frequencyType) {
-        FrequencyType.EVERY_X_DAYS -> dailyDosage / frequencyValue
-        FrequencyType.EVERY_XTH_DAY -> dailyDosage / (frequencyValue + 1)
+    fun dailyConsumption(): Double {
+        val divisor = when (frequencyType) {
+            FrequencyType.EVERY_X_DAYS -> frequencyValue
+            FrequencyType.EVERY_XTH_DAY -> frequencyValue + 1
+        }
+        return if (divisor > 0) dailyDosage / divisor else dailyDosage
     }
 
     fun depletionDate(): LocalDate {
