@@ -335,7 +335,8 @@ class MedicationTest {
         frequencyValue: Int = 1,
         dailyDosage: Double = 1.0,
         startDate: LocalDate? = LocalDate.of(2026, 6, 1),
-        isActive: Boolean = true
+        isActive: Boolean = true,
+        calendarEventId: Long? = null
     ): Medication = Medication(
         id = id,
         genericName = genericName,
@@ -349,6 +350,7 @@ class MedicationTest {
         frequencyValue = frequencyValue,
         dailyDosage = dailyDosage,
         startDate = startDate,
-        isActive = isActive
+        isActive = isActive,
+        calendarEventId = calendarEventId
     )
 }

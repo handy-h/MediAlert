@@ -10,9 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.handy.medialert.R
 import com.handy.medialert.ui.components.EmptyState
 import com.handy.medialert.viewmodel.MedicationViewModel
 
@@ -27,10 +29,10 @@ fun InactiveMedicationsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("已停用药品") },
+                title = { Text(stringResource(R.string.inactive_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -38,8 +40,8 @@ fun InactiveMedicationsScreen(
     ) { paddingValues ->
         if (medications.isEmpty()) {
             EmptyState(
-                title = "没有已停用的药品",
-                subtitle = "停用的药品将显示在这里",
+                title = stringResource(R.string.no_inactive),
+                subtitle = stringResource(R.string.no_inactive_subtitle),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -77,7 +79,7 @@ fun InactiveMedicationsScreen(
                                     )
                                 }
                                 Text(
-                                    text = "库存：${medication.getStockDisplay()}",
+                                    text = stringResource(R.string.current_stock_display, medication.getStockDisplay()),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -86,7 +88,7 @@ fun InactiveMedicationsScreen(
                             ) {
                                 Icon(
                                     Icons.Default.PlayArrow,
-                                    contentDescription = "重新启用"
+                                    contentDescription = stringResource(R.string.reactivate_description)
                                 )
                             }
                         }

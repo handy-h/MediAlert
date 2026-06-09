@@ -193,7 +193,8 @@ class MedicationDaoTest {
         specification: String? = "80/12.5",
         currentStock: Double = 28.0,
         isActive: Boolean = true,
-        startDate: LocalDate? = LocalDate.of(2026, 6, 1)
+        startDate: LocalDate? = LocalDate.of(2026, 6, 1),
+        calendarEventId: Long? = null
     ): Medication = Medication(
         genericName = genericName,
         brandName = brandName,
@@ -206,6 +207,7 @@ class MedicationDaoTest {
         frequencyValue = 1,
         dailyDosage = 1.0,
         startDate = startDate,
-        isActive = isActive
+        isActive = isActive,
+        calendarEventId = calendarEventId
     )
 }

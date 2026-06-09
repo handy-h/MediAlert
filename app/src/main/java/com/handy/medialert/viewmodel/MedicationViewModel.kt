@@ -5,10 +5,9 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.handy.medialert.MediAlertApplication
-import com.handy.medialert.alarm.AlarmScheduler
-import com.handy.medialert.calendar.CalendarManager
 import com.handy.medialert.data.entity.FrequencyType
 import com.handy.medialert.data.entity.Medication
+import com.handy.medialert.reminder.ReminderManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -19,11 +18,15 @@ import java.io.FileWriter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+/**
+ * 药品 ViewModel
+ * 负责 UI 状态管理和用户操作响应
+ * 提醒相关逻辑已委托给 ReminderManager
+ */
 class MedicationViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as MediAlertApplication
     private val repository = app.repository
-    private val alarmScheduler = AlarmScheduler(application)
-    private val calendarManager = CalendarManager(application)
+    private val reminderManager = ReminderManager(application, app.repository)
 
     val activeMedications: StateFlow<List<Medication>> = repository.getAllActiveMedications()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -31,6 +34,9 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     val inactiveMedications: StateFlow<List<Medication>> = repository.getAllInactiveMedications()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * 添加新药品
+     */
     fun addMedication(
         genericName: String,
         brandName: String?,
@@ -62,90 +68,94 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             val savedMedication = repository.getMedicationById(id) ?: return@launch
 
             // 注册提醒
-            registerReminders(savedMedication)
+            reminderManager.registerReminders(savedMedication)
         }
     }
 
+    /**
+     * 更新药品信息
+     */
     fun updateMedication(medication: Medication) {
         viewModelScope.launch {
             repository.updateMedication(medication)
         }
     }
 
+    /**
+     * 删除药品（会自动取消关联提醒）
+     */
     fun deleteMedication(medicationId: Long) {
         viewModelScope.launch {
             val medication = repository.getMedicationById(medicationId) ?: return@launch
-            cancelReminders(medication)
+            reminderManager.cancelReminders(medication)
             repository.deleteMedication(medication)
         }
     }
 
+    /**
+     * 获取药品 Flow
+     */
     fun getMedicationFlow(id: Long): Flow<Medication?> =
         flow { emit(repository.getMedicationById(id)) }
 
+    /**
+     * 增加库存
+     */
     fun addStock(medicationId: Long, quantity: Double, reason: String?) {
         viewModelScope.launch {
             repository.addStock(medicationId, quantity, reason)
             val medication = repository.getMedicationById(medicationId) ?: return@launch
-            // 重新注册提醒
-            cancelReminders(medication)
-            registerReminders(medication)
+            // 重新注册提醒（库存变化可能影响耗尽日期）
+            reminderManager.registerReminders(medication)
         }
     }
 
+    /**
+     * 减少库存
+     */
     fun reduceStock(medicationId: Long, quantity: Double, reason: String?) {
         viewModelScope.launch {
             repository.reduceStock(medicationId, quantity, reason)
             val medication = repository.getMedicationById(medicationId) ?: return@launch
-            // 重新注册提醒
-            cancelReminders(medication)
-            registerReminders(medication)
+            // 重新注册提醒（库存变化可能影响耗尽日期）
+            reminderManager.registerReminders(medication)
         }
     }
 
+    /**
+     * 停用药品
+     */
     fun deactivateMedication(medicationId: Long) {
         viewModelScope.launch {
-            repository.setMedicationActive(medicationId, false)
             val medication = repository.getMedicationById(medicationId) ?: return@launch
-            cancelReminders(medication)
+            reminderManager.cancelReminders(medication)
+            repository.setMedicationActive(medicationId, false)
         }
     }
 
+    /**
+     * 重新启用药品
+     */
     fun activateMedication(medicationId: Long) {
         viewModelScope.launch {
             repository.setMedicationActive(medicationId, true)
             val medication = repository.getMedicationById(medicationId) ?: return@launch
-            registerReminders(medication)
+            reminderManager.registerReminders(medication)
         }
     }
 
+    /**
+     * 刷新所有提醒（选择日历后调用）
+     */
     fun refreshAllReminders(calendarId: Long) {
         viewModelScope.launch {
-            activeMedications.value.forEach { medication ->
-                cancelReminders(medication)
-                registerReminders(medication, calendarId)
-            }
+            reminderManager.refreshAllReminders(activeMedications.value, calendarId)
         }
     }
 
-    private fun registerReminders(medication: Medication, calendarId: Long? = null) {
-        if (!medication.isActive) return
-        if (medication.daysUntilDepletion() <= 0) return
-
-        // 注册日历事件（提前4天）
-        calendarId?.let {
-            calendarManager.addMedicationAlert(it, medication)
-        }
-
-        // 注册闹钟（提前1天）
-        alarmScheduler.scheduleAlarm(medication)
-    }
-
-    private fun cancelReminders(medication: Medication) {
-        alarmScheduler.cancelAlarm(medication.id)
-        // 注意：日历事件取消需要存储eventId，这里简化处理
-    }
-
+    /**
+     * 导出 CSV
+     */
     suspend fun exportToCsv(context: Context): String? {
         return withContext(Dispatchers.IO) {
             try {
@@ -154,7 +164,9 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
                 val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)
                     ?: context.filesDir
-                val fileName = "药箱库存_${System.currentTimeMillis()}.csv"
+                val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+                    .format(java.time.LocalDateTime.now())
+                val fileName = "药箱库存_$timestamp.csv"
                 val file = File(dir, fileName)
 
                 CSVWriter(FileWriter(file)).use { writer ->

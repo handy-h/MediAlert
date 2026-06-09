@@ -15,7 +15,7 @@ import java.time.format.DateTimeFormatter
 
 @Database(
     entities = [Medication::class, StockLog::class],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -33,12 +33,18 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "medialert_database"
-                ).fallbackToDestructiveMigration().build()
+                ).addMigrations(MIGRATION_1_2)
+                    .build()
                 INSTANCE = instance
                 instance
             }
         }
     }
+}
+
+val MIGRATION_1_2 = androidx.room.migration.Migration(1, 2) { database ->
+    // v2: 添加 calendarEventId 字段用于追踪日历事件
+    database.execSQL("ALTER TABLE medications ADD COLUMN calendarEventId INTEGER DEFAULT NULL")
 }
 
 class Converters {

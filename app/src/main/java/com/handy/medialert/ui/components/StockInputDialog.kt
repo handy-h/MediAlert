@@ -5,8 +5,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.handy.medialert.R
 import com.handy.medialert.data.entity.Medication
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,7 +29,7 @@ fun StockInputDialog(
         title = { Text(title) },
         text = {
             Column {
-                Text("${medication.genericName} - 当前：${medication.getStockDisplay()}")
+                Text(stringResource(R.string.current_stock_display, medication.genericName, medication.getStockDisplay()))
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = packageInput,
@@ -48,7 +50,7 @@ fun StockInputDialog(
                 OutlinedTextField(
                     value = reason,
                     onValueChange = { reason = it },
-                    label = { Text("原因（可选）") },
+                    label = { Text(stringResource(R.string.reason_optional)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -64,12 +66,12 @@ fun StockInputDialog(
                     }
                 }
             ) {
-                Text("确认")
+                Text(stringResource(R.string.confirm_button))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
