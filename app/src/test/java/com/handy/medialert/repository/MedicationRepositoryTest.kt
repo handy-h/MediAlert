@@ -34,7 +34,8 @@ class MedicationRepositoryTest {
         frequencyType = FrequencyType.EVERY_X_DAYS,
         frequencyValue = 1,
         dailyDosage = 1.0,
-        isActive = true
+        isActive = true,
+        calendarEventId = null
     )
 
     @Before

@@ -28,6 +28,7 @@ fun MedicationCard(
     onAddStock: () -> Unit,
     onReduceStock: () -> Unit,
     onDeactivate: () -> Unit,
+    onEdit: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val daysLeft = medication.daysUntilDepletion()
@@ -75,6 +76,13 @@ fun MedicationCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = stringResource(R.string.edit_medication),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
                 StatusBadge(color = statusColor, text = statusText)
             }

@@ -20,6 +20,7 @@ data class Medication(
     val dailyDosage: Double,
     val startDate: LocalDate? = null,
     val isActive: Boolean = true,
+    val calendarEventId: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     fun dailyConsumption(): Double {

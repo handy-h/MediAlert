@@ -81,4 +81,16 @@
     <string name="cancel">取消</string>
     <string name="back">返回</string>
     <string name="stock_label">补充库存</string>
+
+    <!-- 库存操作 -->
+    <string name="advance_consume">提前消耗</string>
+    <string name="confirm_button">确认</string>
+    <string name="reason_optional">原因（可选）</string>
+    <string name="current_stock_display">当前：%s</string>
+
+    <!-- 已停用药品 -->
+    <string name="inactive_title">已停用药品</string>
+    <string name="no_inactive_subtitle">停用的药品将显示在这里</string>
+    <string name="reactivate">重新启用</string>
+    <string name="reactivate_description">重新启用</string>
 </resources>

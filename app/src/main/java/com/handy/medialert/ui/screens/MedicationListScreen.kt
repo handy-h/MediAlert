@@ -91,6 +91,9 @@ fun MedicationListScreen(
                         },
                         onDeactivate = {
                             viewModel.deactivateMedication(medication.id)
+                        },
+                        onEdit = {
+                            onEditMedication(medication.id)
                         }
                     )
                 }
@@ -117,7 +120,7 @@ fun MedicationListScreen(
 
     if (showReduceStockDialog && selectedMedication != null) {
         StockInputDialog(
-            title = "提前消耗",
+            title = stringResource(R.string.advance_consume),
             medication = selectedMedication!!,
             isAddition = false,
             onConfirm = { quantity, reason ->

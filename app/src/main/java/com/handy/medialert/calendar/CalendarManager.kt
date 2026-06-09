@@ -44,7 +44,14 @@ class CalendarManager(private val context: Context) {
         return calendars
     }
 
-    fun addMedicationAlert(calendarId: Long, medication: Medication): Long? {
+    /**
+     * 添加药品提醒日历事件
+     * @param calendarId 日历账户ID
+     * @param medication 药品信息
+     * @param existingEventId 已存在的事件ID（用于更新），为null则创建新事件
+     * @return 创建/更新后的事件ID
+     */
+    fun addMedicationAlert(calendarId: Long, medication: Medication, existingEventId: Long? = null): Long? {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR)
             != PackageManager.PERMISSION_GRANTED) {
             return null
@@ -66,6 +73,9 @@ class CalendarManager(private val context: Context) {
             put(CalendarContract.Events.HAS_ALARM, 1)
             put(CalendarContract.Events.RRULE, null as String?) // 一次性事件
         }
+
+        // 如果已存在事件ID，先删除旧事件再创建新事件（更新场景）
+        existingEventId?.let { deleteEvent(it) }
 
         val uri: Uri? = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
         val eventId = uri?.lastPathSegment?.toLongOrNull()

@@ -139,7 +139,8 @@ class AlarmSchedulerTest {
         frequencyValue: Int = 1,
         dailyDosage: Double = 1.0,
         startDate: LocalDate? = LocalDate.now(),
-        isActive: Boolean = true
+        isActive: Boolean = true,
+        calendarEventId: Long? = null
     ): Medication = Medication(
         id = id,
         genericName = "测试药品",
@@ -151,6 +152,7 @@ class AlarmSchedulerTest {
         frequencyValue = frequencyValue,
         dailyDosage = dailyDosage,
         startDate = startDate,
-        isActive = isActive
+        isActive = isActive,
+        calendarEventId = calendarEventId
     )
 }

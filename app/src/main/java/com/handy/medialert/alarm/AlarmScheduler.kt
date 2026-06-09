@@ -25,7 +25,7 @@ class AlarmScheduler(private val context: Context) {
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            medication.id.toInt(),
+            generateRequestCode(medication.id),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -61,7 +61,7 @@ class AlarmScheduler(private val context: Context) {
         val intent = Intent(context, AlarmReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            medicationId.toInt(),
+            generateRequestCode(medicationId),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -74,5 +74,13 @@ class AlarmScheduler(private val context: Context) {
             cancelAlarm(medication.id)
             scheduleAlarm(medication)
         }
+    }
+
+    /**
+     * 生成安全的 PendingIntent requestCode
+     * 使用 hashCode 避免 Long 转 Int 的溢出问题
+     */
+    private fun generateRequestCode(medicationId: Long): Int {
+        return medicationId.hashCode()
     }
 }
