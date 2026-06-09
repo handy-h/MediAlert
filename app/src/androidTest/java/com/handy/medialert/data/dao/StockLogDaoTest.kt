@@ -46,7 +46,7 @@ class StockLogDaoTest {
             frequencyValue = 1,
             dailyDosage = 1.0
         )
-        medicationId = runTest { medicationDao.insert(medication) }
+        runTest { medicationId = medicationDao.insert(medication) }
     }
 
     @After
@@ -160,7 +160,7 @@ class StockLogDaoTest {
     @Test
     fun logs_isolatedByMedicationId() = runTest {
         // 插入第二个药品
-        val med2Id = medicationDao.insert(Medication(
+        val med2Id: Long = medicationDao.insert(Medication(
             genericName = "药品B",
             packageUnit = "盒",
             dosageForm = "片",

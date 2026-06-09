@@ -4,6 +4,16 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// 通过 Kotlin 扩展 API 直接配置 Kotlin daemon JVM 参数（优先级最高）
+// 解决 C:\ProgramData\Temp 不允许执行导致 Room KSP 编译失败的问题
+kotlin {
+    kotlinDaemonJvmArgs = listOf(
+        "-Xmx2048m",
+        "-Dorg.sqlite.tmpdir=C:/Users/gaoga/AppData/Local/Temp",
+        "-Djava.io.tmpdir=C:/Users/gaoga/AppData/Local/Temp"
+    )
+}
+
 android {
     namespace = "com.handy.medialert"
     compileSdk = 34
@@ -51,7 +61,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("androidx.activity:activity-compose:1.8.1")
     implementation(platform("androidx.compose:compose-bom:2023.10.01"))
