@@ -74,12 +74,13 @@ class ReminderManager(
 
     /**
      * 刷新所有活跃药品的提醒
+     * 先取消旧提醒再重新注册（日历事件+闹钟）
      * @param medications 药品列表
-     * @param calendarId 日历账户ID
+     * @param calendarId 日历账户ID（null 则只注册闹钟，不创建日历事件）
      */
     suspend fun refreshAllReminders(
         medications: List<Medication>,
-        calendarId: Long
+        calendarId: Long?
     ) = withContext(Dispatchers.IO) {
         medications.filter { it.isActive }.forEach { medication ->
             registerReminders(medication, calendarId)

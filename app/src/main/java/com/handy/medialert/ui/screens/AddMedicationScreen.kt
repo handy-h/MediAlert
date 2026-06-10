@@ -164,7 +164,7 @@ fun AddMedicationScreen(
             OutlinedTextField(
                 value = packageSize,
                 onValueChange = { packageSize = it.filter { c -> c.isDigit() } },
-                label = { Text("每${packageUnit}含多少${dosageForm} *") },
+                label = { Text(stringResource(R.string.package_size_hint, packageUnit, dosageForm)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -177,16 +177,16 @@ fun AddMedicationScreen(
                 OutlinedTextField(
                     value = currentStockPackages,
                     onValueChange = { currentStockPackages = it.filter { c -> c.isDigit() } },
-                    label = { Text("${packageUnit}数") },
+                    label = { Text(stringResource(R.string.stock_packages_label, packageUnit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
                     value = currentStockUnits,
-                    onValueChange = { currentStockUnits = it.filter { c -> c.isDigit() } },
-                    label = { Text("零散${dosageForm}数") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    onValueChange = { currentStockUnits = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text(stringResource(R.string.stock_units_label, dosageForm)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -218,10 +218,12 @@ fun AddMedicationScreen(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 Text(
-                    when (frequencyType) {
-                        FrequencyType.EVERY_X_DAYS -> "每"
-                        FrequencyType.EVERY_XTH_DAY -> "每隔"
-                    }
+                    stringResource(
+                        when (frequencyType) {
+                            FrequencyType.EVERY_X_DAYS -> R.string.frequency_prefix_every
+                            FrequencyType.EVERY_XTH_DAY -> R.string.frequency_prefix_every_xth
+                        }
+                    )
                 )
                 OutlinedTextField(
                     value = frequencyValue,
@@ -234,17 +236,12 @@ fun AddMedicationScreen(
                     isError = frequencyValueError,
                     supportingText = if (frequencyValueError) {{ Text(stringResource(R.string.error_frequency_must_be_positive)) }} else null
                 )
-                Text(
-                    when (frequencyType) {
-                        FrequencyType.EVERY_X_DAYS -> "天"
-                        FrequencyType.EVERY_XTH_DAY -> "天"
-                    }
-                )
+                Text(stringResource(R.string.frequency_suffix_day))
                 Spacer(modifier = Modifier.width(16.dp))
                 OutlinedTextField(
                     value = dailyDosage,
                     onValueChange = {
-                        dailyDosage = it
+                        dailyDosage = it.filter { c -> c.isDigit() || c == '.' }
                         dailyDosageError = false
                     },
                     label = { Text(stringResource(R.string.dosage_label)) },
@@ -273,7 +270,7 @@ fun AddMedicationScreen(
                     onClick = { showDatePicker = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("开始日期：${startDate}")
+                    Text(stringResource(R.string.start_date_label, startDate.toString()))
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -292,7 +289,7 @@ fun AddMedicationScreen(
 
                     val pkgSize = packageSize.toIntOrNull() ?: return@Button
                     val pkgs = currentStockPackages.toIntOrNull() ?: 0
-                    val units = currentStockUnits.toIntOrNull() ?: 0
+                    val units = currentStockUnits.toDoubleOrNull() ?: 0.0
                     val totalStock = pkgs * pkgSize + units
 
                     viewModel.addMedication(

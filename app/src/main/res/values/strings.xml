@@ -51,8 +51,22 @@
     <string name="export_description">将药品数据导出为CSV文件</string>
     <string name="exporting">正在导出...</string>
     <string name="export_failed">导出失败</string>
+    <string name="import_data">导入数据</string>
+    <string name="import_description">从CSV文件导入药品数据</string>
+    <string name="importing">正在导入...</string>
     <string name="about">关于</string>
     <string name="about_text">药箱库存管家 v1.0</string>
+    <string name="reset_reminders">重设所有提醒</string>
+    <string name="reset_reminders_desc">删除并重新创建所有药品的补药提醒</string>
+    <string name="reset_reminders_confirm_title">确认重设提醒</string>
+    <string name="reset_reminders_confirm_msg">将删除所有已设置的补药日历提醒和闹钟，并根据当前库存重新设置。
+
+此操作不影响您日历中的其他事件。
+
+确定继续吗？</string>
+    <string name="reset_reminders_success">已重新设置 %d 个药品的提醒</string>
+    <string name="reset_reminders_empty">没有需要设置提醒的药品</string>
+    <string name="reset_reminders_failed">重设提醒失败：%s</string>
     <string name="calendar_permission_needed">需要日历权限才能设置提醒</string>
 
     <!-- 合并提醒 -->
@@ -81,6 +95,15 @@
     <string name="cancel">取消</string>
     <string name="back">返回</string>
     <string name="stock_label">补充库存</string>
+    <string name="package_size_label">每%s数量</string>
+    <string name="package_size_hint">每%s含多少%s *</string>
+    <string name="stock_with_form">当前库存（%s）</string>
+    <string name="stock_packages_label">%s数</string>
+    <string name="stock_units_label">零散%s数</string>
+    <string name="start_date_label">开始日期：%s</string>
+    <string name="frequency_prefix_every">每</string>
+    <string name="frequency_prefix_every_xth">每隔</string>
+    <string name="frequency_suffix_day">天</string>
 
     <!-- 库存操作 -->
     <string name="advance_consume">提前消耗</string>

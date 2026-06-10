@@ -131,7 +131,7 @@ fun EditMedicationScreen(
                 OutlinedTextField(
                     value = packageSize,
                     onValueChange = { packageSize = it.filter { c -> c.isDigit() } },
-                    label = { Text("每${packageUnit}数量") },
+                    label = { Text(stringResource(R.string.package_size_label, packageUnit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -142,8 +142,8 @@ fun EditMedicationScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = currentStock,
-                    onValueChange = { currentStock = it },
-                    label = { Text("当前库存（${dosageForm}）") },
+                    onValueChange = { currentStock = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text(stringResource(R.string.stock_with_form, dosageForm)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -199,7 +199,7 @@ fun EditMedicationScreen(
                     OutlinedTextField(
                         value = dailyDosage,
                         onValueChange = {
-                            dailyDosage = it
+                            dailyDosage = it.filter { c -> c.isDigit() || c == '.' }
                             dailyDosageError = false
                         },
                         label = { Text(stringResource(R.string.dosage_label)) },
@@ -228,7 +228,7 @@ fun EditMedicationScreen(
                         onClick = { showDatePicker = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("开始日期：$startDate")
+                        Text(stringResource(R.string.start_date_label, startDate.toString()))
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
@@ -243,7 +243,7 @@ fun EditMedicationScreen(
                         frequencyValueError = freq == null || freq <= 0
                         dailyDosageError = dosage == null || dosage <= 0
 
-                        if (frequencyValueError || dailyDosageError || stock == null || pkgSize == null) return@Button
+                        if (freq == null || freq <= 0 || dosage == null || dosage <= 0 || stock == null || pkgSize == null) return@Button
 
                         viewModel.updateMedication(
                             med.copy(
