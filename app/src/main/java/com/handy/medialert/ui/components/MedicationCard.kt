@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.handy.medialert.R
 import com.handy.medialert.data.entity.Medication
@@ -33,8 +34,9 @@ fun MedicationCard(
 ) {
     val daysLeft = medication.daysUntilDepletion()
     val depletionDate = medication.depletionDate()
-    val dayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINESE)
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("M月d日") }
+    val dayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+    val dateFormatPattern = stringResource(R.string.date_format_month_day)
+    val dateFormatter = remember(dateFormatPattern) { DateTimeFormatter.ofPattern(dateFormatPattern, Locale.getDefault()) }
 
     val (statusColor, statusText) = when {
         daysLeft <= 1 -> UrgentRed to stringResource(R.string.days_until_depleted, daysLeft)
@@ -57,58 +59,66 @@ fun MedicationCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // 标题行
+            // 标题行：药名 + 编辑 + 状态标签（自适应换行）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)) {
                     Text(
                         text = medication.genericName,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     medication.brandName?.let {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = stringResource(R.string.edit_medication),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.edit_medication),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    StatusBadge(color = statusColor, text = statusText)
                 }
-                StatusBadge(color = statusColor, text = statusText)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // 规格信息
             Text(
-                text = "规格：${medication.specification ?: "未填写"} | ${medication.packageSize}${medication.dosageForm}/${medication.packageUnit}",
+                text = stringResource(R.string.spec_display, medication.specification ?: stringResource(R.string.not_filled), medication.packageSize, medication.dosageForm, medication.packageUnit),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // 库存和耗尽日期
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            // 库存和耗尽日期（允许换行适配大字体）
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "当前库存：${medication.getStockDisplay()}",
+                    text = stringResource(R.string.stock_display_label, medication.getStockDisplay()),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = "耗尽：${depletionDate.format(dateFormatter)} $dayOfWeek",
+                    text = stringResource(R.string.depletion_display, depletionDate.format(dateFormatter), dayOfWeek),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -119,46 +129,31 @@ fun MedicationCard(
             // 用药频率
             val freqText = when (medication.frequencyType) {
                 com.handy.medialert.data.entity.FrequencyType.EVERY_X_DAYS ->
-                    "每${medication.frequencyValue}天${medication.dailyDosage}${medication.dosageForm}"
+                    stringResource(R.string.freq_every_x_days_format, medication.frequencyValue, medication.dailyDosage, medication.dosageForm)
                 com.handy.medialert.data.entity.FrequencyType.EVERY_XTH_DAY ->
-                    "每隔${medication.frequencyValue}天${medication.dailyDosage}${medication.dosageForm}"
+                    stringResource(R.string.freq_every_xth_day_format, medication.frequencyValue, medication.dailyDosage, medication.dosageForm)
             }
             Text(
-                text = "用药：$freqText",
+                text = stringResource(R.string.dosage_display, freqText),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 操作按钮
+            // 操作按钮（纯图标模式，避免大字体截断）
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
             ) {
-                OutlinedButton(
-                    onClick = onAddStock,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.restock))
+                OutlinedIconButton(onClick = onAddStock) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.restock), modifier = Modifier.size(22.dp))
                 }
-                OutlinedButton(
-                    onClick = onReduceStock,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.consume))
+                OutlinedIconButton(onClick = onReduceStock) {
+                    Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.consume), modifier = Modifier.size(22.dp))
                 }
-                OutlinedButton(
-                    onClick = onDeactivate,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Pause, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.deactivate))
+                OutlinedIconButton(onClick = onDeactivate) {
+                    Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.deactivate), modifier = Modifier.size(22.dp))
                 }
             }
         }

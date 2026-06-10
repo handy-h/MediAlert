@@ -5,10 +5,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -24,6 +27,7 @@ fun AddMedicationScreen(
     onNavigateBack: () -> Unit,
     viewModel: MedicationViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     var genericName by remember { mutableStateOf("") }
     var brandName by remember { mutableStateOf("") }
     var specification by remember { mutableStateOf("") }
@@ -42,11 +46,12 @@ fun AddMedicationScreen(
     // 验证错误状态
     var frequencyValueError by remember { mutableStateOf(false) }
     var dailyDosageError by remember { mutableStateOf(false) }
+    var packageSizeError by remember { mutableStateOf(false) }
 
-    val packageUnits = listOf("盒", "支", "瓶")
-    val dosageForms = listOf("片", "粒", "ml", "g")
-    var packageUnitExpanded by remember { mutableStateOf(false) }
-    var dosageFormExpanded by remember { mutableStateOf(false) }
+    val packageUnits = remember { context.resources.getStringArray(R.array.package_units).toList() }
+    val dosageForms = remember { context.resources.getStringArray(R.array.dosage_forms).toList() }
+    var packageUnitExpanded by rememberSaveable { mutableStateOf(false) }
+    var dosageFormExpanded by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -54,7 +59,7 @@ fun AddMedicationScreen(
                 title = { Text(stringResource(R.string.add_medication)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -67,37 +72,39 @@ fun AddMedicationScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // 药品名称
+            // ===== 药品名称 =====
             OutlinedTextField(
                 value = genericName,
                 onValueChange = { genericName = it },
                 label = { Text(stringResource(R.string.generic_name_required)) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
                 value = brandName,
                 onValueChange = { brandName = it },
                 label = { Text(stringResource(R.string.brand_name)) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
                 value = specification,
                 onValueChange = { specification = it },
                 label = { Text(stringResource(R.string.specification_hint)) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 包装信息
+            // ===== 包装信息（标题 + 下拉框行 + 每盒数量）=====
             Text(stringResource(R.string.package_info), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                // 最小销售包装
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ExposedDropdownMenuBox(
                     expanded = packageUnitExpanded,
                     onExpandedChange = { packageUnitExpanded = it },
@@ -109,9 +116,10 @@ fun AddMedicationScreen(
                         readOnly = true,
                         label = { Text(stringResource(R.string.package_label)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = packageUnitExpanded) },
-                        modifier = Modifier.menuAnchor()
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        singleLine = true
                     )
-                    ExposedDropdownMenu(
+                    DropdownMenu(
                         expanded = packageUnitExpanded,
                         onDismissRequest = { packageUnitExpanded = false }
                     ) {
@@ -127,9 +135,6 @@ fun AddMedicationScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // 剂型
                 ExposedDropdownMenuBox(
                     expanded = dosageFormExpanded,
                     onExpandedChange = { dosageFormExpanded = it },
@@ -141,9 +146,10 @@ fun AddMedicationScreen(
                         readOnly = true,
                         label = { Text(stringResource(R.string.dosage_form_label)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dosageFormExpanded) },
-                        modifier = Modifier.menuAnchor()
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        singleLine = true
                     )
-                    ExposedDropdownMenu(
+                    DropdownMenu(
                         expanded = dosageFormExpanded,
                         onDismissRequest = { dosageFormExpanded = false }
                     ) {
@@ -159,42 +165,49 @@ fun AddMedicationScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
                 value = packageSize,
-                onValueChange = { packageSize = it.filter { c -> c.isDigit() } },
+                onValueChange = {
+                    packageSize = it.filter { c -> c.isDigit() || c == '.' }
+                    packageSizeError = false
+                },
                 label = { Text(stringResource(R.string.package_size_hint, packageUnit, dosageForm)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = packageSizeError,
+                supportingText = if (packageSizeError) {{ Text(stringResource(R.string.error_invalid_package_size)) }} else null
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 当前库存
+            // ===== 当前库存 =====
             Text(stringResource(R.string.current_stock), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = currentStockPackages,
-                    onValueChange = { currentStockPackages = it.filter { c -> c.isDigit() } },
+                    onValueChange = { currentStockPackages = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text(stringResource(R.string.stock_packages_label, packageUnit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
                 )
-                Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
                     value = currentStockUnits,
                     onValueChange = { currentStockUnits = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text(stringResource(R.string.stock_units_label, dosageForm)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 用药频率
+            // ===== 用药频率 =====
             Text(stringResource(R.string.medication_frequency), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -211,11 +224,11 @@ fun AddMedicationScreen(
                     label = { Text(stringResource(R.string.every_xth_day)) }
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     stringResource(
@@ -231,13 +244,14 @@ fun AddMedicationScreen(
                         frequencyValue = it.filter { c -> c.isDigit() }
                         frequencyValueError = false
                     },
-                    modifier = Modifier.width(80.dp),
+                    modifier = Modifier.width(72.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = frequencyValueError,
+                    singleLine = true,
                     supportingText = if (frequencyValueError) {{ Text(stringResource(R.string.error_frequency_must_be_positive)) }} else null
                 )
                 Text(stringResource(R.string.frequency_suffix_day))
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 OutlinedTextField(
                     value = dailyDosage,
                     onValueChange = {
@@ -245,19 +259,20 @@ fun AddMedicationScreen(
                         dailyDosageError = false
                     },
                     label = { Text(stringResource(R.string.dosage_label)) },
-                    modifier = Modifier.width(100.dp),
+                    modifier = Modifier.width(88.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = dailyDosageError,
+                    singleLine = true,
                     supportingText = if (dailyDosageError) {{ Text(stringResource(R.string.error_invalid_dosage)) }} else null
                 )
                 Text(dosageForm)
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 开始日期
+            // ===== 开始日期 =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Checkbox(
                     checked = hasStartDate,
@@ -287,10 +302,12 @@ fun AddMedicationScreen(
 
                     if (frequencyValueError || dailyDosageError) return@Button
 
-                    val pkgSize = packageSize.toIntOrNull() ?: return@Button
-                    val pkgs = currentStockPackages.toIntOrNull() ?: 0
+                    val pkgSize = packageSize.toDoubleOrNull()
+                    packageSizeError = pkgSize == null || pkgSize <= 0
+                    if (packageSizeError) return@Button
+                    val pkgs = currentStockPackages.toDoubleOrNull() ?: 0.0
                     val units = currentStockUnits.toDoubleOrNull() ?: 0.0
-                    val totalStock = pkgs * pkgSize + units
+                    val totalStock = pkgs * pkgSize!! + units
 
                     viewModel.addMedication(
                         genericName = genericName,
@@ -299,7 +316,7 @@ fun AddMedicationScreen(
                         packageUnit = packageUnit,
                         dosageForm = dosageForm,
                         packageSize = pkgSize,
-                        currentStock = totalStock.toDouble(),
+                        currentStock = totalStock,
                         frequencyType = frequencyType,
                         frequencyValue = freq!!,
                         dailyDosage = dosage!!,

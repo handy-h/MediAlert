@@ -13,7 +13,7 @@ data class Medication(
     val specification: String? = null,
     val packageUnit: String,
     val dosageForm: String,
-    val packageSize: Int,
+    val packageSize: Double,
     val currentStock: Double,
     val frequencyType: FrequencyType,
     val frequencyValue: Int,
@@ -33,7 +33,8 @@ data class Medication(
 
     fun depletionDate(): LocalDate {
         val effectiveStart = startDate ?: LocalDate.now()
-        val daysLeft = (currentStock / dailyConsumption()).toInt()
+        // 向上取整：宁可提前提醒，不让用户低估耗尽时间
+        val daysLeft = kotlin.math.ceil(currentStock / dailyConsumption()).toInt()
         return effectiveStart.plusDays(daysLeft.toLong())
     }
 
@@ -53,6 +54,7 @@ data class Medication(
     }
 
     fun getStockDisplay(): String {
+        // toInt() 向下取整，仅计算完整包装数；余数由 % 精确计算
         val packages = (currentStock / packageSize).toInt()
         val remainder = currentStock % packageSize
         return when {

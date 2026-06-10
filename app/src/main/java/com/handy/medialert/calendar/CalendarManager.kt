@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
+import com.handy.medialert.R
 import com.handy.medialert.data.entity.Medication
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -36,7 +37,7 @@ class CalendarManager(private val context: Context) {
         )?.use { cursor ->
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(0)
-                val displayName = cursor.getString(1) ?: "未命名"
+                val displayName = cursor.getString(1) ?: context.getString(R.string.unnamed_calendar)
                 val accountName = cursor.getString(2) ?: ""
                 calendars.add(CalendarInfo(id, displayName, accountName))
             }
@@ -66,7 +67,7 @@ class CalendarManager(private val context: Context) {
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, startMillis)
             put(CalendarContract.Events.DTEND, endMillis)
-            put(CalendarContract.Events.TITLE, "🛒 购药提醒：${medication.genericName}")
+            put(CalendarContract.Events.TITLE, context.getString(R.string.calendar_event_title, medication.genericName))
             put(CalendarContract.Events.DESCRIPTION, buildDescription(medication))
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
@@ -105,12 +106,13 @@ class CalendarManager(private val context: Context) {
     }
 
     private fun buildDescription(medication: Medication): String {
+        val notFilled = context.getString(R.string.not_filled)
         return buildString {
-            medication.brandName?.let { appendLine("商品名：$it") }
-            appendLine("规格：${medication.specification ?: "未填写"}")
-            appendLine("当前库存：${medication.getStockDisplay()}")
-            appendLine("预计耗尽：${medication.depletionDate()}")
-            appendLine("请提前购药补充库存。")
+            medication.brandName?.let { appendLine(context.getString(R.string.calendar_desc_brand, it)) }
+            appendLine(context.getString(R.string.calendar_desc_spec, medication.specification ?: notFilled))
+            appendLine(context.getString(R.string.calendar_desc_stock, medication.getStockDisplay()))
+            appendLine(context.getString(R.string.calendar_desc_depletion, medication.depletionDate().toString()))
+            appendLine(context.getString(R.string.calendar_desc_reminder))
         }
     }
 

@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +31,8 @@ fun MergedAlertScreen(
 ) {
     val medications by viewModel.activeMedications.collectAsStateWithLifecycle()
     val mergedAlerts = remember(medications) { calculateMergedAlerts(medications) }
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("M月d日") }
+    val dateFormatPattern = stringResource(R.string.date_format_month_day)
+    val dateFormatter = remember(dateFormatPattern) { DateTimeFormatter.ofPattern(dateFormatPattern, Locale.getDefault()) }
     val alertList = remember(mergedAlerts) { mergedAlerts.toList() }
 
     Scaffold(
@@ -40,7 +41,7 @@ fun MergedAlertScreen(
                 title = { Text(stringResource(R.string.merged_alerts_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -62,8 +63,9 @@ fun MergedAlertScreen(
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(alertList, key = { it.first }) { (alertDate, meds) ->
-                    val dayOfWeek = alertDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE)
+                    val dayOfWeek = alertDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
                     val isWorkday = alertDate.dayOfWeek.value <= 5
+                    val weekdayLabel = if (isWorkday) stringResource(R.string.workday_label) else stringResource(R.string.weekend_label)
 
                     Card(
                         modifier = Modifier
@@ -79,16 +81,16 @@ fun MergedAlertScreen(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "📅 ${alertDate.format(dateFormatter)} $dayOfWeek ${if (isWorkday) "(工作日)" else "(周末)"}",
+                                text = stringResource(R.string.merged_alert_date_display, alertDate.format(dateFormatter), dayOfWeek, weekdayLabel),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             meds.forEach { med ->
                                 val depletionDate = med.depletionDate()
-                                val depletionDayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.CHINESE)
+                                val depletionDayOfWeek = depletionDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
                                 Text(
-                                    text = "• ${med.genericName}（${med.brandName ?: ""}）- ${depletionDate.format(dateFormatter)} $depletionDayOfWeek 耗尽",
+                                    text = stringResource(R.string.merged_alert_item, med.genericName, med.brandName ?: "", depletionDate.format(dateFormatter), depletionDayOfWeek),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )

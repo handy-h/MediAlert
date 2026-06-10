@@ -34,7 +34,7 @@ fun StockInputDialog(
                 OutlinedTextField(
                     value = packageInput,
                     onValueChange = { packageInput = it.filter { c -> c.isDigit() } },
-                    label = { Text("${medication.packageUnit}数") },
+                    label = { Text(stringResource(R.string.package_count_label, medication.packageUnit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -42,7 +42,7 @@ fun StockInputDialog(
                 OutlinedTextField(
                     value = unitInput,
                     onValueChange = { unitInput = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("零散${medication.dosageForm}数") },
+                    label = { Text(stringResource(R.string.loose_units_label, medication.dosageForm)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
