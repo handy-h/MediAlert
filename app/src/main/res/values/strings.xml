@@ -41,6 +41,7 @@
     <string name="save_medication">保存药品</string>
     <string name="error_frequency_must_be_positive">频率值必须大于0</string>
     <string name="error_invalid_dosage">请输入有效剂量</string>
+    <string name="error_invalid_package_size">每盒数量必须大于0</string>
     <string name="confirm">确定</string>
 
     <!-- 设置 -->
@@ -116,4 +117,102 @@
     <string name="no_inactive_subtitle">停用的药品将显示在这里</string>
     <string name="reactivate">重新启用</string>
     <string name="reactivate_description">重新启用</string>
+
+    <!-- ===== 新增：原代码中硬编码字符串的资源定义 ===== -->
+
+    <!-- 日历 -->
+    <string name="calendar_event_title">🛒 购药提醒：%s</string>
+    <string name="calendar_desc_brand">商品名：%s</string>
+    <string name="calendar_desc_spec">规格：%s</string>
+    <string name="calendar_desc_stock">当前库存：%s</string>
+    <string name="calendar_desc_depletion">预计耗尽：%s</string>
+    <string name="calendar_desc_reminder">请提前购药补充库存。</string>
+    <string name="not_filled">未填写</string>
+    <string name="unnamed_calendar">未命名</string>
+
+    <!-- 药品卡片 -->
+    <string name="spec_display">规格：%s | %d%s/%s</string>
+    <string name="stock_display_label">当前库存：%s</string>
+    <string name="depletion_display">耗尽：%s %s</string>
+    <string name="dosage_display">用药：%s</string>
+    <string name="freq_every_x_days_format">每%d天%s%s</string>
+    <string name="freq_every_xth_day_format">每隔%d天%s%s</string>
+
+    <!-- 库存操作弹窗 -->
+    <string name="package_count_label">%s数</string>
+    <string name="loose_units_label">零散%s数</string>
+
+    <!-- 日期格式 -->
+    <string name="date_format_month_day">M月d日</string>
+
+    <!-- 合并提醒 -->
+    <string name="workday_label">（工作日）</string>
+    <string name="weekend_label">（周末）</string>
+    <string name="merged_alert_item">• %s（%s）- %s %s 耗尽</string>
+    <string name="merged_alert_date_display">📅 %s %s %s</string>
+
+    <!-- 设置页导入/导出消息 -->
+    <string name="selected">已选择</string>
+    <string name="csv_import_success_count">成功导入 %d 条</string>
+    <string name="csv_import_skip_count">跳过 %d 条空行</string>
+    <string name="csv_import_fail_count">%d 条失败</string>
+    <string name="csv_import_no_data">没有数据被导入</string>
+    <string name="csv_import_more_errors">\n…等 %d 条错误</string>
+    <string name="export_path_prefix">导出路径：%s</string>
+
+    <!-- MedicationViewModel / CSV -->
+    <string name="csv_export_no_data">没有药品数据可导出</string>
+    <string name="csv_export_filename">药箱库存_%s.csv</string>
+    <string name="csv_header_generic_name">通用名</string>
+    <string name="csv_header_brand_name">商品名</string>
+    <string name="csv_header_spec">规格</string>
+    <string name="csv_header_package">包装</string>
+    <string name="csv_header_dosage_form">剂型</string>
+    <string name="csv_header_package_size">每包装数量</string>
+    <string name="csv_header_current_stock">当前库存</string>
+    <string name="csv_header_frequency">用药频率</string>
+    <string name="csv_header_depletion_date">耗尽日期</string>
+    <string name="csv_header_status">状态</string>
+    <string name="csv_status_active">启用</string>
+    <string name="csv_status_inactive">停用</string>
+    <string name="csv_export_failed">导出失败：%s</string>
+    <string name="csv_import_cannot_open">无法打开文件</string>
+    <string name="csv_import_empty">文件为空</string>
+    <string name="csv_import_no_rows">文件中没有数据行</string>
+    <string name="csv_import_insufficient_cols">第%d行：列数不足（需要至少8列）</string>
+    <string name="csv_import_invalid_package_size">第%d行：每包装数量无效</string>
+    <string name="csv_import_unrecognized_freq">第%d行：用药频率格式无法识别 \'%s\'</string>
+    <string name="csv_import_unknown_error">第%d行：未知错误</string>
+    <string name="csv_import_row_error">第%d行：%s</string>
+    <string name="csv_import_file_failed">文件读取失败：%s</string>
+
+    <!-- 闹钟广播回退名称 -->
+    <string name="medication_fallback">药品</string>
+
+    <!-- 频次单位 -->
+    <string name="day_unit">天</string>
+
+    <!-- 包装单位和剂型下拉选项 -->
+    <string-array name="package_units">
+        <item>盒</item>
+        <item>支</item>
+        <item>瓶</item>
+        <item>板</item>
+    </string-array>
+    <string-array name="dosage_forms">
+        <item>片</item>
+        <item>粒</item>
+        <item>支</item>
+        <item>ml</item>
+        <item>g</item>
+        <item>mg</item>
+    </string-array>
+
+    <!-- 电池优化引导 -->
+    <string name="battery_optimization_title">关闭电池优化</string>
+    <string name="battery_optimization_message">药箱库存管家需要在后台运行才能准时发送药品耗尽提醒，请在系统设置中关闭电池优化限制。\n\n设置路径：应用 → 药箱库存管家 → 电池 → 不限制</string>
+    <string name="battery_optimization_disable">去关闭</string>
+
+    <!-- 日历权限拒绝回退提示 -->
+    <string name="calendar_reminder_fallback">日历不可用，提醒将仅通过通知闹钟发送</string>
 </resources>

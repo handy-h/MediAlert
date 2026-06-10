@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.handy.medialert.R
 import com.handy.medialert.MediAlertApplication
 import com.handy.medialert.data.entity.FrequencyType
 import com.handy.medialert.data.entity.Medication
@@ -62,7 +63,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         specification: String?,
         packageUnit: String,
         dosageForm: String,
-        packageSize: Int,
+        packageSize: Double,
         currentStock: Double,
         frequencyType: FrequencyType,
         frequencyValue: Int,
@@ -173,7 +174,8 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun refreshAllReminders(calendarId: Long) {
         viewModelScope.launch {
-            reminderManager.refreshAllReminders(activeMedications.value, calendarId)
+            val activeMeds = repository.getAllActiveMedications().first()
+            reminderManager.refreshAllReminders(activeMeds, calendarId)
         }
     }
 
@@ -186,16 +188,19 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             try {
                 val calendarId = getSavedCalendarId()
-                val activeMeds = activeMedications.value.filter { it.isActive }
+                // 直接从 Room 获取当前数据，避免 StateFlow 快照尚未发出的时序问题
+                val activeMeds = repository.getAllActiveMedications().first()
                 if (activeMeds.isEmpty()) {
                     onResult(0, null)
                     return@launch
                 }
                 // calendarId is nullable — null means no calendar, only alarms will be registered
                 reminderManager.refreshAllReminders(activeMeds, calendarId)
-                onResult(activeMeds.size, null)
+                // 计算实际注册数（排除已耗尽且不需要提醒的药品）
+                val actualCount = activeMeds.count { it.daysUntilDepletion() > 0 }
+                onResult(actualCount, null)
             } catch (e: Exception) {
-                Log.e("MediAlert", "重设提醒失败", e)
+                Log.e("MediAlert", getApplication<MediAlertApplication>().getString(R.string.reset_reminders_failed, e.message ?: e.javaClass.simpleName), e)
                 onResult(-1, e.message ?: e.javaClass.simpleName)
             }
         }
@@ -221,14 +226,15 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                 val medications = activeMedications.value
                 if (medications.isEmpty()) {
                     Log.w("MediAlert", "CSV export skipped: no medications")
-                    return@withContext null to "没有药品数据可导出"
+                val noDataMsg = context.getString(R.string.csv_export_no_data)
+                return@withContext null to noDataMsg
                 }
 
                 val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)
                     ?: context.filesDir
                 val timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
                     .format(java.time.LocalDateTime.now())
-                val fileName = "药箱库存_$timestamp.csv"
+                val fileName = context.getString(R.string.csv_export_filename, timestamp)
                 val file = File(dir, fileName)
 
                 fileOutputStream = FileOutputStream(file)
@@ -239,15 +245,23 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
                 // 表头
                 writer.writeNext(arrayOf(
-                    "通用名", "商品名", "规格", "包装", "剂型", "每包装数量",
-                    "当前库存", "用药频率", "耗尽日期", "状态"
+                    context.getString(R.string.csv_header_generic_name),
+                    context.getString(R.string.csv_header_brand_name),
+                    context.getString(R.string.csv_header_spec),
+                    context.getString(R.string.csv_header_package),
+                    context.getString(R.string.csv_header_dosage_form),
+                    context.getString(R.string.csv_header_package_size),
+                    context.getString(R.string.csv_header_current_stock),
+                    context.getString(R.string.csv_header_frequency),
+                    context.getString(R.string.csv_header_depletion_date),
+                    context.getString(R.string.csv_header_status)
                 ))
 
                 // 数据
                 medications.forEach { med ->
                     val freqText = when (med.frequencyType) {
-                        FrequencyType.EVERY_X_DAYS -> "每${med.frequencyValue}天${med.dailyDosage}${med.dosageForm}"
-                        FrequencyType.EVERY_XTH_DAY -> "每隔${med.frequencyValue}天${med.dailyDosage}${med.dosageForm}"
+                        FrequencyType.EVERY_X_DAYS -> context.getString(R.string.freq_every_x_days_format, med.frequencyValue, med.dailyDosage, med.dosageForm)
+                        FrequencyType.EVERY_XTH_DAY -> context.getString(R.string.freq_every_xth_day_format, med.frequencyValue, med.dailyDosage, med.dosageForm)
                     }
                     writer.writeNext(arrayOf(
                         med.genericName,
@@ -259,7 +273,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                         med.getStockDisplay(),
                         freqText,
                         med.depletionDate().toString(),
-                        if (med.isActive) "启用" else "停用"
+                        if (med.isActive) context.getString(R.string.csv_status_active) else context.getString(R.string.csv_status_inactive)
                     ))
                 }
 
@@ -267,7 +281,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                 Log.i("MediAlert", "CSV exported to: ${file.absolutePath}")
                 file.absolutePath to null
             } catch (e: Exception) {
-                val msg = "导出失败: ${e.message ?: e.javaClass.simpleName}"
+                val msg = context.getString(R.string.csv_export_failed, e.message ?: e.javaClass.simpleName)
                 Log.e("MediAlert", msg, e)
                 null to msg
             } finally {
@@ -281,8 +295,11 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     // CSV 导入
     // ──────────────────────────────────────────────
 
-    private val freqRegexEveryDay = Regex("""每(\d+)天([\d.]+).+""")
-    private val freqRegexEveryXth = Regex("""每隔(\d+)天([\d.]+).+""")
+    // 中文和英文频率解析正则（向后兼容旧CSV + 支持新英文CSV）
+    private val freqRegexEveryDayZh = Regex("""每(\d+)天([\d.]+).+""")
+    private val freqRegexEveryXthZh = Regex("""每隔(\d+)天([\d.]+).+""")
+    private val freqRegexEveryDayEn = Regex("""(?i)Every\s+(\d+)\s*days?\s+([\d.]+).+""")
+    private val freqRegexEveryXthEn = Regex("""(?i)Every\s+(\d+)th\s*day\s+([\d.]+).+""")
 
     /**
      * 从 CSV 文件导入药品数据
@@ -295,16 +312,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
-                    ?: return@withContext ImportResult(0, 0, listOf("无法打开文件"))
+                    ?: return@withContext ImportResult(0, 0, listOf(context.getString(R.string.csv_import_cannot_open)))
 
                 val reader = CSVReader(BufferedReader(InputStreamReader(inputStream, StandardCharsets.UTF_8)))
                 reader.use { csv ->
                     val allRows = csv.readAll()
                     if (allRows.isEmpty()) {
-                        return@withContext ImportResult(0, 0, listOf("文件为空"))
+                        return@withContext ImportResult(0, 0, listOf(context.getString(R.string.csv_import_empty)))
                     }
                     if (allRows.size < 2) {
-                        return@withContext ImportResult(0, 0, listOf("文件中没有数据行"))
+                        return@withContext ImportResult(0, 0, listOf(context.getString(R.string.csv_import_no_rows)))
                     }
 
                     for (i in 1 until allRows.size) {
@@ -312,7 +329,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                         val rowNum = i + 1
                         try {
                             if (row.size < 8) {
-                                errorList.add("第${rowNum}行: 列数不足（需要至少8列）")
+                                errorList.add(context.getString(R.string.csv_import_insufficient_cols, rowNum))
                                 continue
                             }
 
@@ -324,12 +341,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
                             val brandName = row[1].trim().takeIf { it.isNotEmpty() }
                             val specification = row[2].trim().takeIf { it.isNotEmpty() }
-                            val packageUnit = row[3].trim().takeIf { it.isNotEmpty() } ?: "盒"
-                            val dosageForm = row[4].trim().takeIf { it.isNotEmpty() } ?: "片"
+                            val packageUnit = row[3].trim().takeIf { it.isNotEmpty() } ?: context.getString(R.string.csv_header_package).lowercase()
+                            val dosageForm = row[4].trim().takeIf { it.isNotEmpty() } ?: context.getString(R.string.csv_header_dosage_form).lowercase()
 
-                            val packageSize = row[5].trim().toIntOrNull()
+                            val packageSize = row[5].trim().toDoubleOrNull()
                             if (packageSize == null || packageSize <= 0) {
-                                errorList.add("第${rowNum}行: 每包装数量无效")
+                                errorList.add(context.getString(R.string.csv_import_invalid_package_size, rowNum))
                                 continue
                             }
 
@@ -338,7 +355,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
                             val freqParsed = parseFrequencyText(freqText)
                             if (freqParsed == null) {
-                                errorList.add("第${rowNum}行: 用药频率格式无法识别 '$freqText'")
+                                errorList.add(context.getString(R.string.csv_import_unrecognized_freq, rowNum, freqText))
                                 continue
                             }
                             val (freqType, freqValue, dailyDosage) = freqParsed
@@ -364,7 +381,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                             successList.add(genericName)
                         } catch (e: Exception) {
                             Log.w("MediAlert", "CSV import row $rowNum failed", e)
-                            errorList.add("第${rowNum}行: ${e.message ?: "未知错误"}")
+                            errorList.add(context.getString(R.string.csv_import_row_error, rowNum, e.message ?: context.getString(R.string.csv_import_unknown_error, rowNum)))
                         }
                     }
                 }
@@ -373,7 +390,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             } catch (e: Exception) {
                 Log.e("MediAlert", "CSV import failed", e)
                 ImportResult(successList.size, skipCount,
-                    errorList + "文件读取失败: ${e.message ?: e.javaClass.simpleName}")
+                    errorList + context.getString(R.string.csv_import_file_failed, e.message ?: e.javaClass.simpleName))
             }
         }
     }
@@ -385,13 +402,13 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         stockDisplay: String,
         packageUnit: String,
         dosageForm: String,
-        packageSize: Int
+        packageSize: Double
     ): Double {
         val pkgIndex = stockDisplay.indexOf(packageUnit)
         val packages = if (pkgIndex >= 0) {
-            stockDisplay.substring(0, pkgIndex).toIntOrNull() ?: 0
+            stockDisplay.substring(0, pkgIndex).toDoubleOrNull() ?: 0.0
         } else {
-            0
+            0.0
         }
         val remainderStr = if (pkgIndex >= 0) {
             stockDisplay.substring(pkgIndex + packageUnit.length)
@@ -410,12 +427,24 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 解析用药频率文本（如 "每1天1片"、"每隔2天0.5片"）
      */
     private fun parseFrequencyText(freqText: String): Triple<FrequencyType, Int, Double>? {
-        freqRegexEveryDay.matchEntire(freqText)?.let {
+        // 先尝试中文正则
+        freqRegexEveryDayZh.matchEntire(freqText)?.let {
             val freqValue = it.groupValues[1].toIntOrNull() ?: return null
             val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
             return Triple(FrequencyType.EVERY_X_DAYS, freqValue, dailyDosage)
         }
-        freqRegexEveryXth.matchEntire(freqText)?.let {
+        freqRegexEveryXthZh.matchEntire(freqText)?.let {
+            val freqValue = it.groupValues[1].toIntOrNull() ?: return null
+            val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
+            return Triple(FrequencyType.EVERY_XTH_DAY, freqValue, dailyDosage)
+        }
+        // 再尝试英文正则
+        freqRegexEveryDayEn.matchEntire(freqText)?.let {
+            val freqValue = it.groupValues[1].toIntOrNull() ?: return null
+            val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
+            return Triple(FrequencyType.EVERY_X_DAYS, freqValue, dailyDosage)
+        }
+        freqRegexEveryXthEn.matchEntire(freqText)?.let {
             val freqValue = it.groupValues[1].toIntOrNull() ?: return null
             val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
             return Triple(FrequencyType.EVERY_XTH_DAY, freqValue, dailyDosage)

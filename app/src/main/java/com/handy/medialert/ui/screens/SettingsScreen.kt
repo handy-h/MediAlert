@@ -1,14 +1,20 @@
 package com.handy.medialert.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileOpen
@@ -44,6 +50,12 @@ fun SettingsScreen(
     var showResetConfirm by remember { mutableStateOf(false) }
     var isResetting by remember { mutableStateOf(false) }
 
+    val calendarFallbackWarning = stringResource(R.string.calendar_reminder_fallback)
+
+    // 电池优化检查
+    val powerManager = context.getSystemService(PowerManager::class.java)
+    val isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+
     var calendars by remember { mutableStateOf(calendarManager.getCalendars()) }
 
     // CSV 文件选择器
@@ -53,15 +65,20 @@ fun SettingsScreen(
         if (uri != null) {
             isImporting = true
             importMsg = ""
+            val importSuccessMsg = context.getString(R.string.csv_import_success_count)
+            val importSkipMsg = context.getString(R.string.csv_import_skip_count)
+            val importFailMsg = context.getString(R.string.csv_import_fail_count)
+            val importNoDataMsg = context.getString(R.string.csv_import_no_data)
+            val importMoreErrorsMsg = context.getString(R.string.csv_import_more_errors)
             coroutineScope.launch {
                 val result = viewModel.importFromCsv(context, uri)
                 val parts = mutableListOf<String>()
-                if (result.successCount > 0) parts.add("成功导入 ${result.successCount} 条")
-                if (result.skipCount > 0) parts.add("跳过 ${result.skipCount} 条空行")
-                if (result.errors.isNotEmpty()) parts.add("${result.errors.size} 条失败")
-                importMsg = if (parts.isEmpty()) "没有数据被导入" else parts.joinToString("，")
+                if (result.successCount > 0) parts.add(importSuccessMsg.format(result.successCount))
+                if (result.skipCount > 0) parts.add(importSkipMsg.format(result.skipCount))
+                if (result.errors.isNotEmpty()) parts.add(importFailMsg.format(result.errors.size))
+                importMsg = if (parts.isEmpty()) importNoDataMsg else parts.joinToString("，")
                 result.errors.take(5).forEach { importMsg += "\n$it" }
-                if (result.errors.size > 5) importMsg += "\n...等 ${result.errors.size} 条错误"
+                if (result.errors.size > 5) importMsg += importMoreErrorsMsg.format(result.errors.size - 5)
                 isImporting = false
             }
         }
@@ -80,6 +97,10 @@ fun SettingsScreen(
             }
             else -> {
                 Toast.makeText(context, calendarPermissionNeeded, Toast.LENGTH_SHORT).show()
+                // 如果已保存日历但权限被拒，提示回退到仅闹钟
+                if (selectedCalendarId != null) {
+                    Toast.makeText(context, calendarFallbackWarning, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -90,7 +111,7 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -108,7 +129,7 @@ fun SettingsScreen(
                 supportingContent = {
                     Text(
                         selectedCalendarId?.let { id ->
-                            calendars.find { it.id == id }?.displayName ?: "已选择"
+                            calendars.find { it.id == id }?.displayName ?: stringResource(R.string.selected)
                         } ?: stringResource(R.string.calendar_not_set)
                     )
                 },
@@ -131,7 +152,7 @@ fun SettingsScreen(
                 }
             )
 
-            Divider()
+            HorizontalDivider()
 
             // 数据导出
             val exportFailed = stringResource(R.string.export_failed)
@@ -164,13 +185,13 @@ fun SettingsScreen(
 
             if (exportPath.isNotEmpty()) {
                 Text(
-                    text = "导出路径：$exportPath",
+                    text = stringResource(R.string.export_path_prefix, exportPath),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(16.dp)
                 )
             }
 
-            Divider()
+            HorizontalDivider()
 
             // 数据导入
             ListItem(
@@ -202,7 +223,7 @@ fun SettingsScreen(
                 )
             }
 
-            Divider()
+            HorizontalDivider()
 
             // 重设所有提醒
             ListItem(
@@ -222,13 +243,51 @@ fun SettingsScreen(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
             }
 
-            Divider()
+            HorizontalDivider()
 
             // 关于
             ListItem(
                 headlineContent = { Text(stringResource(R.string.about)) },
                 supportingContent = { Text(stringResource(R.string.about_text)) }
             )
+
+            HorizontalDivider()
+
+            // 电池优化（后台保活）
+            if (isBatteryOptimized) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.battery_optimization_title)) },
+                    supportingContent = { Text(stringResource(R.string.battery_optimization_message)) },
+                    leadingContent = {
+                        Icon(Icons.Default.BatterySaver, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        }
+                    }
+                )
+            }
+
+            // 精确闹钟权限状态（Android 12+）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val alarmManager = context.getSystemService(android.app.AlarmManager::class.java)
+                if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.exact_alarm_permission_title)) },
+                        supportingContent = { Text(stringResource(R.string.exact_alarm_permission_message)) },
+                        leadingContent = {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                        },
+                        modifier = Modifier.clickable {
+                            context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                        }
+                    )
+                }
+            }
         }
     }
 

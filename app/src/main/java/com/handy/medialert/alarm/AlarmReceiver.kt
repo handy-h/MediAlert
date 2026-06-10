@@ -9,12 +9,13 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.handy.medialert.MainActivity
+import com.handy.medialert.MediAlertApplication
 import com.handy.medialert.R
 
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val medicationId = intent.getLongExtra("medication_id", -1)
-        val medicationName = intent.getStringExtra("medication_name") ?: "药品"
+        val medicationName = intent.getStringExtra("medication_name") ?: context.getString(R.string.medication_fallback)
         val alertType = intent.getStringExtra("alert_type") ?: "1day"
 
         if (medicationId == -1L) return
@@ -28,18 +29,22 @@ class AlarmReceiver : BroadcastReceiver() {
         medicationName: String,
         alertType: String
     ) {
-        val channelId = "medialert_alarms"
+        val channelId = MediAlertApplication.CHANNEL_ID
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        // 确保通知渠道存在（Pre-Oreo 跳过；Oreo+ Application.onCreate 已预创建，此处为安全回退）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                context.getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = context.getString(R.string.notification_channel_desc)
+            val existingChannel = notificationManager.getNotificationChannel(channelId)
+            if (existingChannel == null) {
+                val channel = NotificationChannel(
+                    channelId,
+                    context.getString(R.string.notification_channel_name),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = context.getString(R.string.notification_channel_desc)
+                }
+                notificationManager.createNotificationChannel(channel)
             }
-            notificationManager.createNotificationChannel(channel)
         }
 
         val activityIntent = Intent(context, MainActivity::class.java).apply {
@@ -68,6 +73,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setGroup("medialert_alerts")
             .build()
 
         notificationManager.notify(medicationId.toInt(), notification)
