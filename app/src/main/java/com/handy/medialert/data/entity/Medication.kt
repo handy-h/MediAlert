@@ -54,12 +54,17 @@ data class Medication(
 
     fun getStockDisplay(): String {
         val packages = (currentStock / packageSize).toInt()
-        val remainder = (currentStock % packageSize).toInt()
+        val remainder = currentStock % packageSize
         return when {
-            packages > 0 && remainder > 0 -> "${packages}${packageUnit}${remainder}${dosageForm}"
+            packages > 0 && remainder > 0.0 -> "${packages}${packageUnit}${formatRemainder(remainder)}${dosageForm}"
             packages > 0 -> "${packages}${packageUnit}"
-            else -> "${remainder}${dosageForm}"
+            remainder > 0.0 -> "${formatRemainder(remainder)}${dosageForm}"
+            else -> "0${dosageForm}"
         }
+    }
+
+    private fun formatRemainder(value: Double): String {
+        return if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
     }
 }
 

@@ -41,9 +41,9 @@ fun StockInputDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = unitInput,
-                    onValueChange = { unitInput = it.filter { c -> c.isDigit() } },
+                    onValueChange = { unitInput = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("零散${medication.dosageForm}数") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -59,10 +59,10 @@ fun StockInputDialog(
             TextButton(
                 onClick = {
                     val packages = packageInput.toIntOrNull() ?: 0
-                    val units = unitInput.toIntOrNull() ?: 0
+                    val units = unitInput.toDoubleOrNull() ?: 0.0
                     val total = packages * medication.packageSize + units
                     if (total > 0) {
-                        onConfirm(total.toDouble(), reason.takeIf { it.isNotBlank() })
+                        onConfirm(total, reason.takeIf { it.isNotBlank() })
                     }
                 }
             ) {
