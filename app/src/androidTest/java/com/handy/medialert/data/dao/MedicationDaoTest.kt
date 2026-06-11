@@ -201,7 +201,7 @@ class MedicationDaoTest {
         specification = specification,
         packageUnit = "盒",
         dosageForm = "片",
-        packageSize = 14,
+        packageSize = 14.0,
         currentStock = currentStock,
         frequencyType = FrequencyType.EVERY_X_DAYS,
         frequencyValue = 1,

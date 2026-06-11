@@ -111,8 +111,8 @@ class MedicationTest {
     }
 
     @Test
-    fun depletionDate_fractionalDays_truncates() {
-        // stock=5, dailyConsumption=2.0 → 5/2=2.5 → 取整=2天
+    fun depletionDate_fractionalDays_roundsUp() {
+        // stock=5, dailyConsumption=2.0 → 5/2=2.5 → ceil=3天
         val startDate = LocalDate.of(2026, 6, 1)
         val medication = createMedication(
             currentStock = 5.0,
@@ -121,7 +121,7 @@ class MedicationTest {
             dailyDosage = 2.0,
             startDate = startDate
         )
-        assertEquals(LocalDate.of(2026, 6, 3), medication.depletionDate())
+        assertEquals(LocalDate.of(2026, 6, 4), medication.depletionDate())
     }
 
     // ============================================================
@@ -167,7 +167,7 @@ class MedicationTest {
             currentStock = 34.0,
             packageUnit = "盒",
             dosageForm = "片",
-            packageSize = 14
+            packageSize = 14.0
         )
         assertEquals("2盒6片", medication.getStockDisplay())
     }
@@ -179,7 +179,7 @@ class MedicationTest {
             currentStock = 28.0,
             packageUnit = "盒",
             dosageForm = "片",
-            packageSize = 14
+            packageSize = 14.0
         )
         assertEquals("2盒", medication.getStockDisplay())
     }
@@ -191,7 +191,7 @@ class MedicationTest {
             currentStock = 6.0,
             packageUnit = "盒",
             dosageForm = "片",
-            packageSize = 14
+            packageSize = 14.0
         )
         assertEquals("6片", medication.getStockDisplay())
     }
@@ -203,7 +203,7 @@ class MedicationTest {
             currentStock = 0.0,
             packageUnit = "盒",
             dosageForm = "片",
-            packageSize = 14
+            packageSize = 14.0
         )
         assertEquals("0片", medication.getStockDisplay())
     }
@@ -215,7 +215,7 @@ class MedicationTest {
             currentStock = 14.0,
             packageUnit = "盒",
             dosageForm = "片",
-            packageSize = 14
+            packageSize = 14.0
         )
         assertEquals("1盒", medication.getStockDisplay())
     }
@@ -227,7 +227,7 @@ class MedicationTest {
             currentStock = 15.0,
             packageUnit = "瓶",
             dosageForm = "ml",
-            packageSize = 10
+            packageSize = 10.0
         )
         assertEquals("1瓶5ml", medication.getStockDisplay())
     }
@@ -329,7 +329,7 @@ class MedicationTest {
         specification: String? = null,
         packageUnit: String = "盒",
         dosageForm: String = "片",
-        packageSize: Int = 14,
+        packageSize: Double = 14.0,
         currentStock: Double = 28.0,
         frequencyType: FrequencyType = FrequencyType.EVERY_X_DAYS,
         frequencyValue: Int = 1,

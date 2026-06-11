@@ -1,0 +1,164 @@
+# AGENTS.md
+
+## Project Overview
+
+MediAlert (药箱库存管家) — Android app for managing home medicine inventory with depletion-date-based reminders. Kotlin + Jetpack Compose + Room, MVVM architecture.
+
+## Build & Test Commands
+
+```bash
+./gradlew assembleDebug          # Build debug APK
+./gradlew testDebugUnitTest      # JVM unit tests (fast, no device needed)
+./gradlew connectedDebugAndroidTest  # Instrumented tests (requires device/emulator)
+./gradlew installDebug           # Build + install on connected device
+```
+
+**Gotcha — KSP/Room tmpdir on Windows**: If Room/KSP codegen fails with a tmpdir permission error, set `-Dorg.sqlite.tmpdir` and `-Djava.io.tmpdir` to a writable temp directory in both `app/build.gradle.kts` (`kotlinDaemonJvmArgs`) and `gradle.properties` (`kotlin.daemon.jvmargs` / `systemProp.java.io.tmpdir`).
+
+**Gotcha — JDK 17 required**: Set `JAVA_HOME` to JDK 17 or set `org.gradle.java.home` in `gradle.properties`. JBR 21 is incompatible with Android SDK platform jars (jlink issue).
+
+## Architecture
+
+```
+MediAlertApplication          # Application subclass, owns Database + Repository singletons
+  └─ AppDatabase (Room v3)    # Entities: Medication, StockLog
+       ├─ MedicationDao       # CRUD + active/inactive queries (Flow + suspend)
+       └─ StockLogDao         # Insert/query stock change logs
+
+MainActivity                  # Single Activity, sets up Compose content
+  └─ MediAlertApp()           # NavHost with string-based routes
+       ├─ "list"              → MedicationListScreen
+       ├─ "add"               → AddMedicationScreen
+       ├─ "edit/{id}"         → EditMedicationScreen
+       ├─ "inactive"          → InactiveMedicationsScreen
+       ├─ "settings"          → SettingsScreen (calendar, export, import, reset)
+       └─ "merged_alerts"     → MergedAlertScreen
+
+MedicationViewModel           # AndroidViewModel, single instance shared across screens
+  └─ ReminderManager          # Coordinates AlarmScheduler + CalendarManager
+       ├─ AlarmScheduler      # AlarmManager (exact alarm, 1-day-before depletion)
+       └─ CalendarManager     # System calendar events (4-day-before depletion)
+```
+
+### Navigation
+
+Routes are plain strings (no sealed class / type-safe args). `edit/{medicationId}` passes a Long via path parameter. All screens use `viewModel()` which returns the same `MedicationViewModel` scoped to the Activity.
+
+### Data Flow
+
+1. Room DAOs return `Flow<List<T>>` for reactive queries
+2. Repository wraps DAOs with `flowOn(Dispatchers.IO)`
+3. ViewModel converts Flows to `StateFlow` via `stateIn(viewModelScope, WhileSubscribed(5000), emptyList())`
+4. Screens collect via `collectAsStateWithLifecycle()`
+5. All writes go through `viewModelScope.launch { ... }` → repository → DAO suspend functions
+
+### Reminder System (Two-Tier)
+
+| Tier | Trigger | Mechanism | When |
+|------|---------|-----------|------|
+| Calendar event | `CalendarManager` | System calendar ContentProvider | 4 days before depletion, 22:00 |
+| Alarm | `AlarmScheduler` | `AlarmManager.setExactAndAllowWhileIdle` | 1 day before depletion, 14:00 |
+
+**Key**: `ReminderManager.registerReminders()` always cancels old reminders first, then re-registers. After any stock/frequency change, reminders are re-registered automatically.
+
+**Boot persistence**: `BootReceiver` re-registers all alarms on `BOOT_COMPLETED`. Calendar events persist in the system calendar (no re-registration needed).
+
+## Key Domain Logic
+
+### Medication Entity
+
+- `dailyConsumption()`: `dailyDosage / divisor` where divisor = `frequencyValue` for EVERY_X_DAYS, `frequencyValue + 1` for EVERY_XTH_DAY
+- `depletionDate()`: `startDate + ceil(currentStock / dailyConsumption())` days. Uses `ceil()` to never underestimate.
+- `daysUntilDepletion()`: days from now to depletionDate (can be negative = already depleted)
+- `getStockDisplay()`: formats stock as "2盒6片" (packages + remainder)
+- `frequencyType` enum: `EVERY_X_DAYS` ("每X天") vs `EVERY_XTH_DAY` ("每隔X天") — these are semantically different (every 2 days ≠ every other day)
+
+### Stock Model
+
+Stock is stored as `Double` (total dosage units, not packages). "3盒+6片" with packageSize=14 → `3*14 + 6 = 48.0`. The `StockInputDialog` computes this conversion in the UI layer.
+
+### Database Migrations
+
+Current version: 3. Migrations are defined in `AppDatabase.kt`:
+- v1→v2: Added `calendarEventId` column
+- v2→v3: Changed `packageSize` from INTEGER to REAL (recreate table with correct column order — column order in INSERT/SELECT must match entity field declaration)
+
+## Testing
+
+### JVM Unit Tests (`app/src/test/`)
+
+- `MedicationTest` — Pure logic tests for entity methods (dailyConsumption, depletionDate, getStockDisplay)
+- `ConvertersTest` — Room TypeConverter round-trip tests
+- `MedicationRepositoryTest` — Repository with MockK DAOs
+
+Framework: JUnit 4 + MockK + `kotlinx-coroutines-test` (`runTest`)
+
+### Instrumented Tests (`app/src/androidTest/`)
+
+- `MedicationDaoTest` — Room DAO tests with in-memory database
+- `StockLogDaoTest` — StockLog DAO + foreign key cascade tests
+- `AlarmSchedulerTest` — Alarm scheduling (Android device required)
+
+Framework: AndroidJUnit4 + Espresso + Room testing
+
+**Test patterns**: Tests use `createSampleMedication()` factory methods with sensible defaults. Instrumented tests use `Room.inMemoryDatabaseBuilder().allowMainThreadQueries()`. Coroutine tests use `runTest { }`.
+
+## Conventions
+
+### Code Style
+
+- **Language**: Kotlin, all comments and UI strings in Chinese (with English translations in `values-en/strings.xml`)
+- **No DI framework**: Manual dependency injection via `MediAlertApplication` (Application subclass acts as service locator)
+- **ViewModel**: `AndroidViewModel` (not plain ViewModel) because it needs `Application` context for SharedPreferences and to access the application-level repository
+- **All UI strings resource-backed**: Every user-visible string uses `stringResource(R.string.xxx)` or `context.getString(R.string.xxx)`. Never hardcode strings in Composables.
+
+### Input Filtering
+
+Numeric inputs filter characters inline: `it.filter { c -> c.isDigit() || c == '.' }`. Stock input dialog uses `isDigit()` only for package count (integers) but allows decimals for loose units.
+
+### SharedPreferences
+
+Calendar account ID is stored in `"medialert_prefs"` under key `"calendar_id"`. The `prefs` property is `by lazy` to avoid blocking the main thread during ViewModel initialization.
+
+### ProGuard
+
+Release builds have `isMinifyEnabled = true`. ProGuard rules in `app/proguard-rules.pro` keep Room entities, Kotlin coroutines state machine, and OpenCSV classes. Uses `-dontoptimize` to protect coroutines.
+
+### Repository Pattern
+
+`MedicationRepository` is a thin pass-through to DAOs for most operations. The only non-trivial logic is `addStock`/`reduceStock` which update stock AND insert a `StockLog` entry. `reduceStock` clamps to 0 via `coerceAtLeast(0.0)`.
+
+## Package Structure
+
+```
+com.handy.medialert/
+├── alarm/           # AlarmScheduler, AlarmReceiver, BootReceiver
+├── calendar/        # CalendarManager (system calendar CRUD)
+├── data/
+│   ├── entity/      # Medication, StockLog (+ enums FrequencyType, StockLogType)
+│   ├── dao/         # MedicationDao, StockLogDao
+│   └── database/    # AppDatabase, Migrations, TypeConverters
+├── repository/      # MedicationRepository
+├── reminder/        # ReminderManager (orchestrates alarm + calendar)
+├── ui/
+│   ├── screens/     # Composable screens (one per route)
+│   ├── components/  # Reusable composables (MedicationCard, StockInputDialog, etc.)
+│   └── theme/       # Material3 theme (Color, Theme, Type)
+├── viewmodel/       # MedicationViewModel
+├── MainActivity.kt  # Single Activity + NavHost
+└── MediAlertApplication.kt  # Application, DB/Repo singletons, notification channel
+```
+
+## Localization
+
+- Default (`values/strings.xml`): Chinese
+- English: `values-en/strings.xml`
+- CSV import parses frequencies in both Chinese ("每1天1片") and English ("Every 1 days 1 tablets") regex patterns
+
+## Known Pitfalls
+
+1. **Column order in Room migrations**: When recreating tables (v2→v3), column order in `INSERT INTO ... SELECT` must exactly match entity field declaration order, or data silently shifts.
+2. **StateFlow timing**: Some operations (export, reset reminders) use `repository.getAllActiveMedications().first()` directly instead of `activeMedications.value` to avoid stale StateFlow snapshots.
+3. **Calendar permission graceful degradation**: If calendar permissions are denied, the app falls back to alarm-only reminders. `calendarId` being null is a valid state.
+4. **AlarmManager deprecation**: On Android 12+, `canScheduleExactAlarms()` must be checked; if false, falls back to inexact `alarmManager.set()`.
+5. **Notification channel**: Created in `MediAlertApplication.onCreate()` with `IMPORTANCE_HIGH`. `AlarmReceiver` has a safety fallback to create it if missing.
