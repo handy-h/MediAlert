@@ -29,7 +29,7 @@ class MedicationRepositoryTest {
         specification = "80/12.5",
         packageUnit = "盒",
         dosageForm = "片",
-        packageSize = 14,
+        packageSize = 14.0,
         currentStock = 28.0,
         frequencyType = FrequencyType.EVERY_X_DAYS,
         frequencyValue = 1,
