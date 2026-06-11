@@ -69,6 +69,10 @@ fun MedicationListScreen(
                     .padding(paddingValues)
             )
         } else {
+            // 使用 remember 缓存排序结果，避免每次重组都重新计算 daysUntilDepletion()
+            val sortedMedications = remember(medications) {
+                medications.sortedBy { it.daysUntilDepletion() }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -76,7 +80,7 @@ fun MedicationListScreen(
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(
-                    items = medications.sortedBy { it.daysUntilDepletion() },
+                    items = sortedMedications,
                     key = { it.id }
                 ) { medication ->
                     MedicationCard(

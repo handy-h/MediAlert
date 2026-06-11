@@ -35,7 +35,10 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     private val app = application as MediAlertApplication
     private val repository = app.repository
     private val reminderManager = ReminderManager(application, app.repository)
-    private val prefs = application.getSharedPreferences("medialert_prefs", Context.MODE_PRIVATE)
+    // lazy 延迟到首次使用才读取 SharedPreferences XML，避免 ViewModel 初始化时阻塞主线程
+    private val prefs by lazy {
+        application.getSharedPreferences("medialert_prefs", Context.MODE_PRIVATE)
+    }
 
     /** 获取持久化的日历账户ID */
     fun getSavedCalendarId(): Long? {
@@ -121,7 +124,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 获取药品 Flow
      */
     fun getMedicationFlow(id: Long): Flow<Medication?> =
-        flow { emit(repository.getMedicationById(id)) }
+        flow { emit(repository.getMedicationById(id)) }.flowOn(Dispatchers.IO)
 
     /**
      * 增加库存
@@ -223,11 +226,13 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             var fileOutputStream: FileOutputStream? = null
             var writer: CSVWriter? = null
             try {
-                val medications = activeMedications.value
+                // 直接从数据库读取最新数据，避免 StateFlow 快照时序问题
+                val medications = repository.getAllActiveMedications().first()
+                Log.i("MediAlert", "CSV export: found ${medications.size} active medications")
                 if (medications.isEmpty()) {
                     Log.w("MediAlert", "CSV export skipped: no medications")
-                val noDataMsg = context.getString(R.string.csv_export_no_data)
-                return@withContext null to noDataMsg
+                    val noDataMsg = context.getString(R.string.csv_export_no_data)
+                    return@withContext null to noDataMsg
                 }
 
                 val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)

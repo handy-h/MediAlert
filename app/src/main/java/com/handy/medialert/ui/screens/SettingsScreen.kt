@@ -30,7 +30,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.handy.medialert.R
 import com.handy.medialert.calendar.CalendarManager
 import com.handy.medialert.viewmodel.MedicationViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,11 +54,22 @@ fun SettingsScreen(
 
     val calendarFallbackWarning = stringResource(R.string.calendar_reminder_fallback)
 
-    // 电池优化检查
-    val powerManager = context.getSystemService(PowerManager::class.java)
-    val isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+    // 电池优化检查（Binder IPC 调用，延迟到后台线程避免阻塞主线程）
+    var isBatteryOptimized by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val powerManager = context.getSystemService(PowerManager::class.java)
+            isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        }
+    }
 
-    var calendars by remember { mutableStateOf(calendarManager.getCalendars()) }
+    // 日历列表延迟加载，避免主线程阻塞导致ANR
+    var calendars by remember { mutableStateOf(emptyList<CalendarManager.CalendarInfo>()) }
+    var isLoadingCalendars by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        calendars = withContext(Dispatchers.IO) { calendarManager.getCalendars() }
+        isLoadingCalendars = false
+    }
 
     // CSV 文件选择器
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -92,8 +105,12 @@ fun SettingsScreen(
         when {
             permissions[Manifest.permission.READ_CALENDAR] == true &&
             permissions[Manifest.permission.WRITE_CALENDAR] == true -> {
-                calendars = calendarManager.getCalendars()
-                showCalendarDialog = true
+                isLoadingCalendars = true
+                coroutineScope.launch {
+                    calendars = withContext(Dispatchers.IO) { calendarManager.getCalendars() }
+                    isLoadingCalendars = false
+                    showCalendarDialog = true
+                }
             }
             else -> {
                 Toast.makeText(context, calendarPermissionNeeded, Toast.LENGTH_SHORT).show()
@@ -127,16 +144,28 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.calendar_account)) },
                 supportingContent = {
-                    Text(
-                        selectedCalendarId?.let { id ->
-                            calendars.find { it.id == id }?.displayName ?: stringResource(R.string.selected)
-                        } ?: stringResource(R.string.calendar_not_set)
-                    )
+                    if (isLoadingCalendars) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.loading))
+                        }
+                    } else {
+                        Text(
+                            selectedCalendarId?.let { id ->
+                                calendars.find { it.id == id }?.displayName ?: stringResource(R.string.selected)
+                            } ?: stringResource(R.string.calendar_not_set)
+                        )
+                    }
                 },
                 leadingContent = {
                     Icon(Icons.Default.CalendarToday, contentDescription = null)
                 },
                 modifier = Modifier.clickable {
+                    if (isLoadingCalendars) return@clickable
                     when {
                         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED ->
                             showCalendarDialog = true

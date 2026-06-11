@@ -54,7 +54,8 @@
     <string name="export_failed">导出失败</string>
     <string name="import_data">导入数据</string>
     <string name="import_description">从CSV文件导入药品数据</string>
-    <string name="importing">正在导入...</string>
+    <string name="importing">正在导入…</string>
+    <string name="loading">加载中…</string>
     <string name="about">关于</string>
     <string name="about_text">药箱库存管家 v1.0</string>
     <string name="reset_reminders">重设所有提醒</string>
@@ -131,7 +132,7 @@
     <string name="unnamed_calendar">未命名</string>
 
     <!-- 药品卡片 -->
-    <string name="spec_display">规格：%s | %d%s/%s</string>
+    <string name="spec_display">规格：%s | %.0f%s/%s</string>
     <string name="stock_display_label">当前库存：%s</string>
     <string name="depletion_display">耗尽：%s %s</string>
     <string name="dosage_display">用药：%s</string>
@@ -157,7 +158,7 @@
     <string name="csv_import_skip_count">跳过 %d 条空行</string>
     <string name="csv_import_fail_count">%d 条失败</string>
     <string name="csv_import_no_data">没有数据被导入</string>
-    <string name="csv_import_more_errors">\n…等 %d 条错误</string>
+    <string name="csv_import_more_errors">\n...等 %d 条错误</string>
     <string name="export_path_prefix">导出路径：%s</string>
 
     <!-- MedicationViewModel / CSV -->
@@ -181,7 +182,7 @@
     <string name="csv_import_no_rows">文件中没有数据行</string>
     <string name="csv_import_insufficient_cols">第%d行：列数不足（需要至少8列）</string>
     <string name="csv_import_invalid_package_size">第%d行：每包装数量无效</string>
-    <string name="csv_import_unrecognized_freq">第%d行：用药频率格式无法识别 \'%s\'</string>
+    <string name="csv_import_unrecognized_freq">第%d行：用药频率格式无法识别「%s」</string>
     <string name="csv_import_unknown_error">第%d行：未知错误</string>
     <string name="csv_import_row_error">第%d行：%s</string>
     <string name="csv_import_file_failed">文件读取失败：%s</string>

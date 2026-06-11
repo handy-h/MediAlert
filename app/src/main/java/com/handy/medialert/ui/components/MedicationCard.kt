@@ -1,4 +1,4 @@
-package com.handy.medialert.ui.components
+﻿package com.handy.medialert.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
