@@ -2,17 +2,15 @@ package com.handy.medialert.data.entity
 
 import org.junit.Assert.*
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 class MedicationTest {
 
-    // ============================================================
-    // dailyConsumption() 日消耗量计算测试
-    // ============================================================
-
     @Test
     fun dailyConsumption_everyXDays_returnsCorrectRate() {
-        // 每2天服用1.0片 → 日消耗 = 1.0 / 2 = 0.5
         val medication = createMedication(
             frequencyType = FrequencyType.EVERY_X_DAYS,
             frequencyValue = 2,
@@ -23,7 +21,6 @@ class MedicationTest {
 
     @Test
     fun dailyConsumption_everyXDays_dailyDose() {
-        // 每1天服用2.0片 → 日消耗 = 2.0 / 1 = 2.0
         val medication = createMedication(
             frequencyType = FrequencyType.EVERY_X_DAYS,
             frequencyValue = 1,
@@ -34,7 +31,6 @@ class MedicationTest {
 
     @Test
     fun dailyConsumption_everyXthDay_returnsCorrectRate() {
-        // 每隔2天服用3.0片 → 日消耗 = 3.0 / (2+1) = 1.0
         val medication = createMedication(
             frequencyType = FrequencyType.EVERY_XTH_DAY,
             frequencyValue = 2,
@@ -45,7 +41,6 @@ class MedicationTest {
 
     @Test
     fun dailyConsumption_everyXthDay_intervalOne() {
-        // 每隔1天服用1.0片 → 日消耗 = 1.0 / (1+1) = 0.5
         val medication = createMedication(
             frequencyType = FrequencyType.EVERY_XTH_DAY,
             frequencyValue = 1,
@@ -56,7 +51,6 @@ class MedicationTest {
 
     @Test
     fun dailyConsumption_zeroDivisor_fallbackToDailyDose() {
-        // frequencyValue=0 时 divisor=0，应降级返回 dailyDosage
         val medication = createMedication(
             frequencyType = FrequencyType.EVERY_X_DAYS,
             frequencyValue = 0,
@@ -65,13 +59,8 @@ class MedicationTest {
         assertEquals(2.0, medication.dailyConsumption(), 0.001)
     }
 
-    // ============================================================
-    // depletionDate() 耗尽日期计算测试
-    // ============================================================
-
     @Test
     fun depletionDate_withStartDate_calculatesCorrectly() {
-        // startDate=2026-06-01, stock=28, dailyConsumption=1.0 → 耗尽日=2026-06-29
         val medication = createMedication(
             currentStock = 28.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
@@ -83,36 +72,55 @@ class MedicationTest {
     }
 
     @Test
-    fun depletionDate_withoutStartDate_usesToday() {
-        // startDate=null 时使用 LocalDate.now()
+    fun depletionDate_withoutStartDate_usesCreatedAtDate() {
+        val createdAtDate = LocalDate.of(2026, 5, 1)
+        val createdAt = createdAtDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val medication = createMedication(
             currentStock = 10.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
             frequencyValue = 1,
             dailyDosage = 1.0,
-            startDate = null
+            startDate = null,
+            createdAt = createdAt
         )
-        val expectedDaysLeft = 10 // 10 / 1.0 = 10 天
-        val expected = LocalDate.now().plusDays(expectedDaysLeft.toLong())
-        assertEquals(expected, medication.depletionDate())
+        assertEquals(createdAtDate.plusDays(10), medication.depletionDate())
     }
 
     @Test
-    fun depletionDate_zeroStock_returnsToday() {
-        // 库存为0时，耗尽日 = 起始日（今天）
+    fun daysUntilDepletion_countdownDecreasesOverTime() {
+        val fiveDaysAgo = LocalDate.now().minusDays(5)
+        val createdAt = fiveDaysAgo.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val medication = createMedication(
+            currentStock = 10.0,
+            frequencyType = FrequencyType.EVERY_X_DAYS,
+            frequencyValue = 1,
+            dailyDosage = 1.0,
+            startDate = null,
+            createdAt = createdAt
+        )
+        // 5 天前创建，10 片每天 1 片，depletionDate = 创建日+10，所以剩余天数应为 5
+        val expected = ChronoUnit.DAYS.between(LocalDate.now(), fiveDaysAgo.plusDays(10)).toInt()
+        assertEquals(expected, medication.daysUntilDepletion())
+    }
+
+    @Test
+    fun depletionDate_zeroStock_returnsCreatedAtDate() {
+        val createdAtDate = LocalDate.of(2026, 6, 1)
+        val createdAt = createdAtDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val medication = createMedication(
             currentStock = 0.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
             frequencyValue = 1,
             dailyDosage = 1.0,
-            startDate = null
+            startDate = null,
+            createdAt = createdAt
         )
-        assertEquals(LocalDate.now(), medication.depletionDate())
+        // 无开始日期时耗尽日应等于创建日（0 天消耗）
+        assertEquals(createdAtDate, medication.depletionDate())
     }
 
     @Test
     fun depletionDate_fractionalDays_roundsUp() {
-        // stock=5, dailyConsumption=2.0 → 5/2=2.5 → ceil=3天
         val startDate = LocalDate.of(2026, 6, 1)
         val medication = createMedication(
             currentStock = 5.0,
@@ -124,13 +132,8 @@ class MedicationTest {
         assertEquals(LocalDate.of(2026, 6, 4), medication.depletionDate())
     }
 
-    // ============================================================
-    // daysUntilDepletion() 距耗尽天数测试
-    // ============================================================
-
     @Test
     fun daysUntilDepletion_futureDate_returnsPositive() {
-        // 构造一个耗尽日期在 10 天后的药品
         val today = LocalDate.now()
         val medication = createMedication(
             currentStock = 10.0,
@@ -144,7 +147,6 @@ class MedicationTest {
 
     @Test
     fun daysUntilDepletion_pastDate_returnsNegative() {
-        // startDate 在很久之前，库存很少
         val pastDate = LocalDate.now().minusDays(100)
         val medication = createMedication(
             currentStock = 1.0,
@@ -156,13 +158,8 @@ class MedicationTest {
         assertTrue(medication.daysUntilDepletion() < 0)
     }
 
-    // ============================================================
-    // getStockDisplay() 库存显示格式化测试
-    // ============================================================
-
     @Test
     fun getStockDisplay_packagesAndRemainder_showsMixed() {
-        // 34片 ÷ 14片/盒 = 2盒余6片 → "2盒6片"
         val medication = createMedication(
             currentStock = 34.0,
             packageUnit = "盒",
@@ -174,7 +171,6 @@ class MedicationTest {
 
     @Test
     fun getStockDisplay_packagesOnly_showsPackages() {
-        // 28片 ÷ 14片/盒 = 2盒余0片 → "2盒"
         val medication = createMedication(
             currentStock = 28.0,
             packageUnit = "盒",
@@ -186,7 +182,6 @@ class MedicationTest {
 
     @Test
     fun getStockDisplay_remainderOnly_showsRemainder() {
-        // 6片 ÷ 14片/盒 = 0盒余6片 → "6片"
         val medication = createMedication(
             currentStock = 6.0,
             packageUnit = "盒",
@@ -198,7 +193,6 @@ class MedicationTest {
 
     @Test
     fun getStockDisplay_zeroStock_showsZeroRemainder() {
-        // 0片 → "0片"
         val medication = createMedication(
             currentStock = 0.0,
             packageUnit = "盒",
@@ -210,7 +204,6 @@ class MedicationTest {
 
     @Test
     fun getStockDisplay_singlePackage_showsCorrectly() {
-        // 14片 ÷ 14片/盒 = 1盒 → "1盒"
         val medication = createMedication(
             currentStock = 14.0,
             packageUnit = "盒",
@@ -222,7 +215,6 @@ class MedicationTest {
 
     @Test
     fun getStockDisplay_mlUnit_showsCorrectly() {
-        // 15ml ÷ 10ml/瓶 = 1瓶余5ml → "1瓶5ml"
         val medication = createMedication(
             currentStock = 15.0,
             packageUnit = "瓶",
@@ -232,13 +224,8 @@ class MedicationTest {
         assertEquals("1瓶5ml", medication.getStockDisplay())
     }
 
-    // ============================================================
-    // alert4DayDateTime() 第一阶段提醒时间测试
-    // ============================================================
-
     @Test
     fun alert4DayDateTime_returnsCorrectTime() {
-        // 耗尽日期=2026-06-29 → 提前4天=2026-06-25 22:00
         val medication = createMedication(
             currentStock = 28.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
@@ -252,13 +239,8 @@ class MedicationTest {
         assertEquals(0, alertTime.minute)
     }
 
-    // ============================================================
-    // alert1DayDateTime() 第二阶段提醒时间测试
-    // ============================================================
-
     @Test
     fun alert1DayDateTime_returnsCorrectTime() {
-        // 耗尽日期=2026-06-29 → 提前1天=2026-06-28 14:00
         val medication = createMedication(
             currentStock = 28.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
@@ -272,13 +254,8 @@ class MedicationTest {
         assertEquals(0, alertTime.minute)
     }
 
-    // ============================================================
-    // 预警状态颜色判定辅助测试
-    // ============================================================
-
     @Test
     fun alertColorStatus_urgent_whenDaysLessOrEqualOne() {
-        // daysUntilDepletion ≤ 1 → 紧急(红色)
         val medication = createMedication(
             currentStock = 1.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
@@ -292,7 +269,6 @@ class MedicationTest {
 
     @Test
     fun alertColorStatus_warning_whenDaysBetweenTwoAndFour() {
-        // 2 ≤ daysUntilDepletion ≤ 4 → 警告(黄色)
         val medication = createMedication(
             currentStock = 3.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
@@ -306,7 +282,6 @@ class MedicationTest {
 
     @Test
     fun alertColorStatus_normal_whenDaysGreaterThanFour() {
-        // daysUntilDepletion > 4 → 正常(绿色)
         val medication = createMedication(
             currentStock = 10.0,
             frequencyType = FrequencyType.EVERY_X_DAYS,
@@ -317,10 +292,6 @@ class MedicationTest {
         val days = medication.daysUntilDepletion()
         assertTrue("days=$days 应为正常状态", days > 4)
     }
-
-    // ============================================================
-    // 辅助工厂方法
-    // ============================================================
 
     private fun createMedication(
         id: Long = 1L,
@@ -336,7 +307,8 @@ class MedicationTest {
         dailyDosage: Double = 1.0,
         startDate: LocalDate? = LocalDate.of(2026, 6, 1),
         isActive: Boolean = true,
-        calendarEventId: Long? = null
+        calendarEventId: Long? = null,
+        createdAt: Long = Instant.parse("2026-06-01T00:00:00Z").toEpochMilli()
     ): Medication = Medication(
         id = id,
         genericName = genericName,
@@ -351,6 +323,7 @@ class MedicationTest {
         dailyDosage = dailyDosage,
         startDate = startDate,
         isActive = isActive,
-        calendarEventId = calendarEventId
+        calendarEventId = calendarEventId,
+        createdAt = createdAt
     )
 }

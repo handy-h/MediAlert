@@ -2,7 +2,9 @@ package com.handy.medialert.data.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 @Entity(tableName = "medications")
 data class Medication(
@@ -32,8 +34,9 @@ data class Medication(
     }
 
     fun depletionDate(): LocalDate {
-        val effectiveStart = startDate ?: LocalDate.now()
-        // 向上取整：宁可提前提醒，不让用户低估耗尽时间
+        // 没有手动设置开始日期时，使用创建日期作为固定起始日，
+        // 避免每天都重新取 LocalDate.now() 导致倒计时永远不动。
+        val effectiveStart = startDate ?: Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
         val daysLeft = kotlin.math.ceil(currentStock / dailyConsumption()).toInt()
         return effectiveStart.plusDays(daysLeft.toLong())
     }
