@@ -1,6 +1,5 @@
 package com.handy.medialert.alarm
 
-import android.app.AlarmManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -146,7 +145,7 @@ class AlarmSchedulerTest {
         genericName = "测试药品",
         packageUnit = "盒",
         dosageForm = "片",
-        packageSize = 14,
+        packageSize = 14.0,
         currentStock = currentStock,
         frequencyType = frequencyType,
         frequencyValue = frequencyValue,
