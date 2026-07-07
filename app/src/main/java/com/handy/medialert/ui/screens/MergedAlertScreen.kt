@@ -103,7 +103,7 @@ fun MergedAlertScreen(
     }
 }
 
-private fun calculateMergedAlerts(medications: List<Medication>): Map<LocalDate, List<Medication>> {
+internal fun calculateMergedAlerts(medications: List<Medication>): Map<LocalDate, List<Medication>> {
     val activeMeds = medications.filter { it.isActive && it.daysUntilDepletion() > 0 }
     if (activeMeds.isEmpty()) return emptyMap()
 

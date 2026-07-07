@@ -51,9 +51,11 @@ class AlarmReceiver : BroadcastReceiver() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("medication_id", medicationId)
         }
+        // 使用 hashCode 避免 Long 转 Int 溢出（与 AlarmScheduler.generateRequestCode 保持一致）
+        val requestCode = medicationId.hashCode()
         val pendingIntent = PendingIntent.getActivity(
             context,
-            medicationId.toInt(),
+            requestCode,
             activityIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -76,6 +78,6 @@ class AlarmReceiver : BroadcastReceiver() {
             .setGroup("medialert_alerts")
             .build()
 
-        notificationManager.notify(medicationId.toInt(), notification)
+        notificationManager.notify(requestCode, notification)
     }
 }

@@ -54,11 +54,17 @@ fun EditMedicationScreen(
         var packageSize by remember { mutableStateOf(med.packageSize.toString()) }
 
         // 库存信息（二元输入，与新增页一致）
-        var stockPackages by remember {
-            mutableStateOf((med.currentStock / med.packageSize).toInt().toString())
-        }
-        var stockUnits by remember {
-            mutableStateOf(formatStockRemainder(med.currentStock % med.packageSize))
+        // 当用户修改 packageSize 输入框时，动态重新计算库存拆分
+        var stockPackages by remember { mutableStateOf((med.currentStock / med.packageSize).toInt().toString()) }
+        var stockUnits by remember { mutableStateOf(formatStockRemainder(med.currentStock % med.packageSize)) }
+
+        // 监听 packageSize 输入变化，重新拆分库存
+        LaunchedEffect(packageSize) {
+            val pkgSize = packageSize.toDoubleOrNull()
+            if (pkgSize != null && pkgSize > 0) {
+                stockPackages = (med.currentStock / pkgSize).toInt().toString()
+                stockUnits = formatStockRemainder(med.currentStock % pkgSize)
+            }
         }
 
         // 用药频率
@@ -73,6 +79,7 @@ fun EditMedicationScreen(
         // 验证状态
         var frequencyValueError by remember { mutableStateOf(false) }
         var dailyDosageError by remember { mutableStateOf(false) }
+        var packageSizeError by remember { mutableStateOf(false) }
 
         Scaffold(
             topBar = {
@@ -195,11 +202,16 @@ fun EditMedicationScreen(
 
                 OutlinedTextField(
                     value = packageSize,
-                    onValueChange = { packageSize = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = {
+                        packageSize = it.filter { c -> c.isDigit() || c == '.' }
+                        packageSizeError = false
+                    },
                     label = { Text(stringResource(R.string.package_size_hint, packageUnit, dosageForm)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    isError = packageSizeError,
+                    supportingText = if (packageSizeError) {{ Text(stringResource(R.string.error_invalid_package_size)) }} else null
                 )
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -318,6 +330,7 @@ fun EditMedicationScreen(
 
                         frequencyValueError = freq == null || freq <= 0
                         dailyDosageError = dosage == null || dosage <= 0
+                        packageSizeError = pkgSize == null || pkgSize <= 0
 
                         if (freq == null || freq <= 0 || dosage == null || dosage <= 0 || pkgSize == null || pkgSize <= 0) return@Button
 

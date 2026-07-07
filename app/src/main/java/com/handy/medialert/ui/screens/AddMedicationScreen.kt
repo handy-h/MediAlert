@@ -294,20 +294,17 @@ fun AddMedicationScreen(
             Button(
                 onClick = {
                     val freq = frequencyValue.toIntOrNull()
+                        ?: run { frequencyValueError = true; return@Button }
+                    if (freq <= 0) { frequencyValueError = true; return@Button }
                     val dosage = dailyDosage.toDoubleOrNull()
-
-                    // 验证频率值
-                    frequencyValueError = freq == null || freq <= 0
-                    dailyDosageError = dosage == null || dosage <= 0
-
-                    if (frequencyValueError || dailyDosageError) return@Button
-
+                        ?: run { dailyDosageError = true; return@Button }
+                    if (dosage <= 0) { dailyDosageError = true; return@Button }
                     val pkgSize = packageSize.toDoubleOrNull()
-                    packageSizeError = pkgSize == null || pkgSize <= 0
-                    if (packageSizeError) return@Button
+                        ?: run { packageSizeError = true; return@Button }
+                    if (pkgSize <= 0) { packageSizeError = true; return@Button }
                     val pkgs = currentStockPackages.toDoubleOrNull() ?: 0.0
                     val units = currentStockUnits.toDoubleOrNull() ?: 0.0
-                    val totalStock = pkgs * pkgSize!! + units
+                    val totalStock = pkgs * pkgSize + units
 
                     viewModel.addMedication(
                         genericName = genericName,
@@ -318,8 +315,8 @@ fun AddMedicationScreen(
                         packageSize = pkgSize,
                         currentStock = totalStock,
                         frequencyType = frequencyType,
-                        frequencyValue = freq!!,
-                        dailyDosage = dosage!!,
+                        frequencyValue = freq,
+                        dailyDosage = dosage,
                         startDate = if (hasStartDate) startDate else null
                     )
                     onNavigateBack()

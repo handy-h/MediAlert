@@ -12,8 +12,7 @@ class MediAlertApplication : Application() {
     val repository by lazy {
         MedicationRepository(
             database.medicationDao(),
-            database.stockLogDao(),
-            this
+            database.stockLogDao()
         )
     }
 

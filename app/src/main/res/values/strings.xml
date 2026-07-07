@@ -15,6 +15,7 @@
     <string name="consume">消耗</string>
     <string name="deactivate">停用</string>
     <string name="days_until_depleted">%d天后耗尽</string>
+    <string name="depleted">已耗尽</string>
 
     <!-- 编辑药品 -->
     <string name="edit_medication">编辑药品</string>
@@ -57,7 +58,7 @@
     <string name="importing">正在导入…</string>
     <string name="loading">加载中…</string>
     <string name="about">关于</string>
-    <string name="about_text">药箱库存管家 v1.0</string>
+    <string name="about_text">药箱库存管家 v%1$s</string>
     <string name="reset_reminders">重设所有提醒</string>
     <string name="reset_reminders_desc">删除并重新创建所有药品的补药提醒</string>
     <string name="reset_reminders_confirm_title">确认重设提醒</string>
@@ -186,6 +187,10 @@
     <string name="csv_import_unknown_error">第%d行：未知错误</string>
     <string name="csv_import_row_error">第%d行：%s</string>
     <string name="csv_import_file_failed">文件读取失败：%s</string>
+
+    <!-- 操作反馈 -->
+    <string name="error_reduce_exceeds_stock">减少量不能超过当前库存（%s）</string>
+    <string name="operation_failed">操作失败，请重试</string>
 
     <!-- 闹钟广播回退名称 -->
     <string name="medication_fallback">药品</string>

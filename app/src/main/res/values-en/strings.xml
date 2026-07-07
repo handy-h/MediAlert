@@ -15,6 +15,7 @@
     <string name="consume">Consume</string>
     <string name="deactivate">Deactivate</string>
     <string name="days_until_depleted">%d day(s) left</string>
+    <string name="depleted">Depleted</string>
 
     <!-- Edit Medication -->
     <string name="edit_medication">Edit Medication</string>
@@ -56,7 +57,7 @@
     <string name="import_description">Import medication data from CSV</string>
     <string name="importing">Importing…</string>
     <string name="about">About</string>
-    <string name="about_text">MediAlert v1.0</string>
+    <string name="about_text">MediAlert v%1$s</string>
     <string name="reset_reminders">Reset All Reminders</string>
     <string name="reset_reminders_desc">Delete and recreate all refill reminders</string>
     <string name="reset_reminders_confirm_title">Confirm Reset</string>

@@ -14,6 +14,7 @@ class AlarmScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun scheduleAlarm(medication: Medication) {
+        if (medication.daysUntilDepletion() <= 0) return
         val alertTime = medication.alert1DayDateTime()
         if (alertTime.isBefore(LocalDateTime.now())) return
 

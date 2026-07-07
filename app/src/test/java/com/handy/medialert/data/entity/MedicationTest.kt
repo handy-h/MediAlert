@@ -146,7 +146,7 @@ class MedicationTest {
     }
 
     @Test
-    fun daysUntilDepletion_pastDate_returnsNegative() {
+    fun daysUntilDepletion_pastDate_returnsZero() {
         val pastDate = LocalDate.now().minusDays(100)
         val medication = createMedication(
             currentStock = 1.0,
@@ -155,7 +155,8 @@ class MedicationTest {
             dailyDosage = 1.0,
             startDate = pastDate
         )
-        assertTrue(medication.daysUntilDepletion() < 0)
+        // 已耗尽的药品返回 0 而非负数，避免 UI 显示负天数
+        assertEquals(0, medication.daysUntilDepletion())
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.handy.medialert.repository
 
-import android.content.Context
 import com.handy.medialert.data.dao.MedicationDao
 import com.handy.medialert.data.dao.StockLogDao
 import com.handy.medialert.data.entity.FrequencyType
@@ -19,7 +18,6 @@ class MedicationRepositoryTest {
 
     private lateinit var medicationDao: MedicationDao
     private lateinit var stockLogDao: StockLogDao
-    private lateinit var context: Context
     private lateinit var repository: MedicationRepository
 
     private val sampleMedication = Medication(
@@ -42,8 +40,7 @@ class MedicationRepositoryTest {
     fun setUp() {
         medicationDao = mockk(relaxed = true)
         stockLogDao = mockk(relaxed = true)
-        context = mockk(relaxed = true)
-        repository = MedicationRepository(medicationDao, stockLogDao, context)
+        repository = MedicationRepository(medicationDao, stockLogDao)
     }
 
     // ============================================================
@@ -166,21 +163,21 @@ class MedicationRepositoryTest {
     // ============================================================
 
     @Test
-    fun reduceStock_updatesStockAndLogsLost() = runTest {
+    fun reduceStock_updatesStockAndLogsAdjustment() = runTest {
         coEvery { medicationDao.getById(1L) } returns sampleMedication
 
-        repository.reduceStock(1L, 5.0, "丢失")
+        repository.reduceStock(1L, 5.0, "提前消耗")
 
         // 验证库存更新: 28 - 5 = 23
         coVerify { medicationDao.updateStock(1L, 23.0) }
 
-        // 验证日志记录（数量为负数）
+        // 验证日志记录（数量为负数，类型为 ADJUSTMENT）
         coVerify {
             stockLogDao.insert(match<StockLog> {
                 it.medicationId == 1L &&
-                    it.type == StockLogType.LOST &&
+                    it.type == StockLogType.ADJUSTMENT &&
                     it.quantity == -5.0 &&
-                    it.reason == "丢失"
+                    it.reason == "提前消耗"
             })
         }
     }
