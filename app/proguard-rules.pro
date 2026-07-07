@@ -1,6 +1,8 @@
 # ProGuard rules
-# -dontoptimize 禁用 R8 优化以保护 Kotlin 协程状态机不被 -allowaccessmodification 破坏（等效旧版 proguard-android.txt）
--dontoptimize
+# 注：不再使用 -dontoptimize。构建默认已采用 proguard-android-optimize.txt 启用 R8 优化，
+# 全局禁用会使 APK 体积增大约 10-20%。下方 Room / 协程的 -keep 规则足以保护运行时结构，
+# 现代 R8 对 Kotlin 协程状态机的优化是安全的。
+# 如需最大化混淆可保留默认；如发布后遇到稀有问题，可针对具体类补充 -keep。
 
 # ── 注解/签名保留（Kotlin + Room 运行时必需）──
 -keepattributes *Annotation*, InnerClasses, Signature, EnclosingMethod, Exceptions

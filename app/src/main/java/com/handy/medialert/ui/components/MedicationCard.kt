@@ -39,6 +39,7 @@ fun MedicationCard(
     val dateFormatter = remember(dateFormatPattern) { DateTimeFormatter.ofPattern(dateFormatPattern, Locale.getDefault()) }
 
     val (statusColor, statusText) = when {
+        daysLeft <= 0 -> UrgentRed to stringResource(R.string.depleted)
         daysLeft <= 1 -> UrgentRed to stringResource(R.string.days_until_depleted, daysLeft)
         daysLeft <= 4 -> WarningYellow to stringResource(R.string.days_until_depleted, daysLeft)
         else -> NormalGreen to stringResource(R.string.days_until_depleted, daysLeft)

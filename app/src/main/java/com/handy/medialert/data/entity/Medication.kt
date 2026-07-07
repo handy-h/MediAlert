@@ -45,7 +45,7 @@ data class Medication(
         return java.time.temporal.ChronoUnit.DAYS.between(
             LocalDate.now(),
             depletionDate()
-        ).toInt()
+        ).toInt().coerceAtLeast(0)
     }
 
     fun alert4DayDateTime(): java.time.LocalDateTime {

@@ -1,6 +1,5 @@
 package com.handy.medialert.repository
 
-import android.content.Context
 import com.handy.medialert.data.dao.MedicationDao
 import com.handy.medialert.data.dao.StockLogDao
 import com.handy.medialert.data.entity.Medication
@@ -12,8 +11,7 @@ import kotlinx.coroutines.flow.flowOn
 
 class MedicationRepository(
     private val medicationDao: MedicationDao,
-    private val stockLogDao: StockLogDao,
-    private val context: Context
+    private val stockLogDao: StockLogDao
 ) {
     fun getAllActiveMedications(): Flow<List<Medication>> = medicationDao.getAllActive().flowOn(Dispatchers.IO)
     fun getAllInactiveMedications(): Flow<List<Medication>> = medicationDao.getAllInactive().flowOn(Dispatchers.IO)
@@ -53,7 +51,7 @@ class MedicationRepository(
         stockLogDao.insert(
             StockLog(
                 medicationId = medicationId,
-                type = StockLogType.LOST,
+                type = StockLogType.ADJUSTMENT,
                 quantity = -quantity,
                 reason = reason
             )

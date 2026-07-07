@@ -8,7 +8,10 @@ import com.handy.medialert.R
 import com.handy.medialert.MediAlertApplication
 import com.handy.medialert.data.entity.FrequencyType
 import com.handy.medialert.data.entity.Medication
+import com.handy.medialert.csv.CsvDataParser
 import com.handy.medialert.reminder.ReminderManager
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -31,10 +34,33 @@ import java.time.format.DateTimeFormatter
  * 负责 UI 状态管理和用户操作响应
  * 提醒相关逻辑已委托给 ReminderManager
  */
-class MedicationViewModel(application: Application) : AndroidViewModel(application) {
+class MedicationViewModel(
+    application: Application,
+    private val reminderManager: ReminderManager = ReminderManager(
+        application,
+        (application as MediAlertApplication).repository
+    ),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : AndroidViewModel(application) {
     private val app = application as MediAlertApplication
     private val repository = app.repository
-    private val reminderManager = ReminderManager(application, app.repository)
+
+    /** 操作失败时的错误消息（UI 通过 Snackbar 展示，展示后调用 clearErrorMessage 清除） */
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    /**
+     * 兜底异常处理器：写操作协程中若异常逃逸了 try/catch（例如被 SupervisorJob 吞掉），
+     * 由该处理器统一把错误消息暴露到 [errorMessage]，供 UI 通过 Snackbar 展示。
+     */
+    private val exceptionHandler = CoroutineExceptionHandler { _, _ ->
+        _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+    }
+
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
+
     // lazy 延迟到首次使用才读取 SharedPreferences XML，避免 ViewModel 初始化时阻塞主线程
     private val prefs by lazy {
         application.getSharedPreferences("medialert_prefs", Context.MODE_PRIVATE)
@@ -73,25 +99,30 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         dailyDosage: Double,
         startDate: LocalDate?
     ) {
-        viewModelScope.launch {
-            val medication = Medication(
-                genericName = genericName,
-                brandName = brandName,
-                specification = specification,
-                packageUnit = packageUnit,
-                dosageForm = dosageForm,
-                packageSize = packageSize,
-                currentStock = currentStock,
-                frequencyType = frequencyType,
-                frequencyValue = frequencyValue,
-                dailyDosage = dailyDosage,
-                startDate = startDate
-            )
-            val id = repository.addMedication(medication)
-            val savedMedication = repository.getMedicationById(id) ?: return@launch
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                val medication = Medication(
+                    genericName = genericName,
+                    brandName = brandName,
+                    specification = specification,
+                    packageUnit = packageUnit,
+                    dosageForm = dosageForm,
+                    packageSize = packageSize,
+                    currentStock = currentStock,
+                    frequencyType = frequencyType,
+                    frequencyValue = frequencyValue,
+                    dailyDosage = dailyDosage,
+                    startDate = startDate
+                )
+                val id = repository.addMedication(medication)
+                val savedMedication = repository.getMedicationById(id) ?: return@launch
 
-            // 注册提醒（传入已保存的日历ID）
-            reminderManager.registerReminders(savedMedication, getSavedCalendarId())
+                // 注册提醒（传入已保存的日历ID）
+                reminderManager.registerReminders(savedMedication, getSavedCalendarId())
+            } catch (e: Exception) {
+                Log.e("MediAlert", "addMedication failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+            }
         }
     }
 
@@ -100,11 +131,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 更新后会自动重新注册提醒（用药频率/库存变化可能影响耗尽日期）
      */
     fun updateMedication(medication: Medication) {
-        viewModelScope.launch {
-            repository.updateMedication(medication)
-            // 重新注册提醒（剂量/频率变化可能影响提醒时间）
-            if (medication.isActive) {
-                reminderManager.registerReminders(medication, getSavedCalendarId())
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                repository.updateMedication(medication)
+                // 重新注册提醒（剂量/频率变化可能影响提醒时间）
+                if (medication.isActive) {
+                    reminderManager.registerReminders(medication, getSavedCalendarId())
+                }
+            } catch (e: Exception) {
+                Log.e("MediAlert", "updateMedication failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
             }
         }
     }
@@ -113,10 +149,15 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 删除药品（会自动取消关联提醒）
      */
     fun deleteMedication(medicationId: Long) {
-        viewModelScope.launch {
-            val medication = repository.getMedicationById(medicationId) ?: return@launch
-            reminderManager.cancelReminders(medication)
-            repository.deleteMedication(medication)
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                val medication = repository.getMedicationById(medicationId) ?: return@launch
+                reminderManager.cancelReminders(medication)
+                repository.deleteMedication(medication)
+            } catch (e: Exception) {
+                Log.e("MediAlert", "deleteMedication failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+            }
         }
     }
 
@@ -130,11 +171,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 增加库存
      */
     fun addStock(medicationId: Long, quantity: Double, reason: String?) {
-        viewModelScope.launch {
-            repository.addStock(medicationId, quantity, reason)
-            val medication = repository.getMedicationById(medicationId) ?: return@launch
-            // 重新注册提醒（库存变化可能影响耗尽日期）
-            reminderManager.registerReminders(medication, getSavedCalendarId())
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                repository.addStock(medicationId, quantity, reason)
+                val medication = repository.getMedicationById(medicationId) ?: return@launch
+                // 重新注册提醒（库存变化可能影响耗尽日期）
+                reminderManager.registerReminders(medication, getSavedCalendarId())
+            } catch (e: Exception) {
+                Log.e("MediAlert", "addStock failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+            }
         }
     }
 
@@ -142,11 +188,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 减少库存
      */
     fun reduceStock(medicationId: Long, quantity: Double, reason: String?) {
-        viewModelScope.launch {
-            repository.reduceStock(medicationId, quantity, reason)
-            val medication = repository.getMedicationById(medicationId) ?: return@launch
-            // 重新注册提醒（库存变化可能影响耗尽日期）
-            reminderManager.registerReminders(medication, getSavedCalendarId())
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                repository.reduceStock(medicationId, quantity, reason)
+                val medication = repository.getMedicationById(medicationId) ?: return@launch
+                // 重新注册提醒（库存变化可能影响耗尽日期）
+                reminderManager.registerReminders(medication, getSavedCalendarId())
+            } catch (e: Exception) {
+                Log.e("MediAlert", "reduceStock failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+            }
         }
     }
 
@@ -154,10 +205,15 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 停用药品
      */
     fun deactivateMedication(medicationId: Long) {
-        viewModelScope.launch {
-            val medication = repository.getMedicationById(medicationId) ?: return@launch
-            reminderManager.cancelReminders(medication)
-            repository.setMedicationActive(medicationId, false)
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                val medication = repository.getMedicationById(medicationId) ?: return@launch
+                reminderManager.cancelReminders(medication)
+                repository.setMedicationActive(medicationId, false)
+            } catch (e: Exception) {
+                Log.e("MediAlert", "deactivateMedication failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+            }
         }
     }
 
@@ -165,10 +221,15 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 重新启用药品
      */
     fun activateMedication(medicationId: Long) {
-        viewModelScope.launch {
-            repository.setMedicationActive(medicationId, true)
-            val medication = repository.getMedicationById(medicationId) ?: return@launch
-            reminderManager.registerReminders(medication, getSavedCalendarId())
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
+            try {
+                repository.setMedicationActive(medicationId, true)
+                val medication = repository.getMedicationById(medicationId) ?: return@launch
+                reminderManager.registerReminders(medication, getSavedCalendarId())
+            } catch (e: Exception) {
+                Log.e("MediAlert", "activateMedication failed", e)
+                _errorMessage.value = getApplication<MediAlertApplication>().getString(R.string.operation_failed)
+            }
         }
     }
 
@@ -176,7 +237,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 刷新所有提醒（选择日历后调用）
      */
     fun refreshAllReminders(calendarId: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
             val activeMeds = repository.getAllActiveMedications().first()
             reminderManager.refreshAllReminders(activeMeds, calendarId)
         }
@@ -188,7 +249,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * 使用已保存的日历账户ID，不影响其他 App 的日历事件
      */
     fun resetAllReminders(onResult: (Int, String?) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher + exceptionHandler) {
             try {
                 val calendarId = getSavedCalendarId()
                 // 直接从 Room 获取当前数据，避免 StateFlow 快照尚未发出的时序问题
@@ -300,12 +361,6 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     // CSV 导入
     // ──────────────────────────────────────────────
 
-    // 中文和英文频率解析正则（向后兼容旧CSV + 支持新英文CSV）
-    private val freqRegexEveryDayZh = Regex("""每(\d+)天([\d.]+).+""")
-    private val freqRegexEveryXthZh = Regex("""每隔(\d+)天([\d.]+).+""")
-    private val freqRegexEveryDayEn = Regex("""(?i)Every\s+(\d+)\s*days?\s+([\d.]+).+""")
-    private val freqRegexEveryXthEn = Regex("""(?i)Every\s+(\d+)th\s*day\s+([\d.]+).+""")
-
     /**
      * 从 CSV 文件导入药品数据
      */
@@ -358,14 +413,14 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                             val stockDisplay = row[6].trim()
                             val freqText = row[7].trim()
 
-                            val freqParsed = parseFrequencyText(freqText)
+                            val freqParsed = CsvDataParser.parseFrequencyText(freqText)
                             if (freqParsed == null) {
                                 errorList.add(context.getString(R.string.csv_import_unrecognized_freq, rowNum, freqText))
                                 continue
                             }
                             val (freqType, freqValue, dailyDosage) = freqParsed
 
-                            val currentStock = parseStockDisplay(stockDisplay, packageUnit, dosageForm, packageSize)
+                            val currentStock = CsvDataParser.parseStockDisplay(stockDisplay, packageUnit, dosageForm, packageSize)
 
                             val medication = Medication(
                                 genericName = genericName,
@@ -382,7 +437,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                                 isActive = true
                             )
 
-                            repository.addMedication(medication)
+                            val id = repository.addMedication(medication)
+                            // 注册提醒（导入的药品也需要提醒）
+                            val savedMed = repository.getMedicationById(id)
+                            savedMed?.let { saved ->
+                                reminderManager.registerReminders(saved, getSavedCalendarId())
+                            }
                             successList.add(genericName)
                         } catch (e: Exception) {
                             Log.w("MediAlert", "CSV import row $rowNum failed", e)
@@ -400,60 +460,4 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /**
-     * 解析库存显示文本（如 "2盒3片"、"0.5片"）回 Double
-     */
-    private fun parseStockDisplay(
-        stockDisplay: String,
-        packageUnit: String,
-        dosageForm: String,
-        packageSize: Double
-    ): Double {
-        val pkgIndex = stockDisplay.indexOf(packageUnit)
-        val packages = if (pkgIndex >= 0) {
-            stockDisplay.substring(0, pkgIndex).toDoubleOrNull() ?: 0.0
-        } else {
-            0.0
-        }
-        val remainderStr = if (pkgIndex >= 0) {
-            stockDisplay.substring(pkgIndex + packageUnit.length)
-        } else {
-            stockDisplay
-        }
-        val remainder = if (remainderStr.endsWith(dosageForm)) {
-            remainderStr.removeSuffix(dosageForm).toDoubleOrNull() ?: 0.0
-        } else {
-            0.0
-        }
-        return packages * packageSize + remainder
-    }
-
-    /**
-     * 解析用药频率文本（如 "每1天1片"、"每隔2天0.5片"）
-     */
-    private fun parseFrequencyText(freqText: String): Triple<FrequencyType, Int, Double>? {
-        // 先尝试中文正则
-        freqRegexEveryDayZh.matchEntire(freqText)?.let {
-            val freqValue = it.groupValues[1].toIntOrNull() ?: return null
-            val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
-            return Triple(FrequencyType.EVERY_X_DAYS, freqValue, dailyDosage)
-        }
-        freqRegexEveryXthZh.matchEntire(freqText)?.let {
-            val freqValue = it.groupValues[1].toIntOrNull() ?: return null
-            val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
-            return Triple(FrequencyType.EVERY_XTH_DAY, freqValue, dailyDosage)
-        }
-        // 再尝试英文正则
-        freqRegexEveryDayEn.matchEntire(freqText)?.let {
-            val freqValue = it.groupValues[1].toIntOrNull() ?: return null
-            val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
-            return Triple(FrequencyType.EVERY_X_DAYS, freqValue, dailyDosage)
-        }
-        freqRegexEveryXthEn.matchEntire(freqText)?.let {
-            val freqValue = it.groupValues[1].toIntOrNull() ?: return null
-            val dailyDosage = it.groupValues[2].toDoubleOrNull() ?: return null
-            return Triple(FrequencyType.EVERY_XTH_DAY, freqValue, dailyDosage)
-        }
-        return null
-    }
 }

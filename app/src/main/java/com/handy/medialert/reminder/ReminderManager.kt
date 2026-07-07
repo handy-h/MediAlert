@@ -6,6 +6,8 @@ import com.handy.medialert.calendar.CalendarManager
 import com.handy.medialert.data.entity.Medication
 import com.handy.medialert.repository.MedicationRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -15,10 +17,12 @@ import kotlinx.coroutines.withContext
  */
 class ReminderManager(
     private val context: Context,
-    private val repository: MedicationRepository
+    private val repository: MedicationRepository,
+    private val alarmScheduler: AlarmScheduler = AlarmScheduler(context),
+    private val calendarManager: CalendarManager = CalendarManager(context)
 ) {
-    private val alarmScheduler = AlarmScheduler(context)
-    private val calendarManager = CalendarManager(context)
+    // 防止短时间内对同一药品重复调用 registerReminders 时的竞态（先取消再注册的窗口）
+    private val registerMutex = Mutex()
 
     /**
      * 为药品注册提醒（闹钟 + 日历）
@@ -34,24 +38,26 @@ class ReminderManager(
             return@withContext medication
         }
 
-        // 取消旧提醒
-        cancelReminders(medication)
+        registerMutex.withLock {
+            // 取消旧提醒
+            cancelReminders(medication)
 
-        // 注册日历事件（提前4天）
-        val newEventId = calendarId?.let {
-            calendarManager.addMedicationAlert(it, medication, medication.calendarEventId)
-        }
+            // 注册日历事件（提前4天）
+            val newEventId = calendarId?.let {
+                calendarManager.addMedicationAlert(it, medication, medication.calendarEventId)
+            }
 
-        // 注册闹钟（提前1天）
-        alarmScheduler.scheduleAlarm(medication)
+            // 注册闹钟（提前1天）
+            alarmScheduler.scheduleAlarm(medication)
 
-        // 如果生成了新的事件ID，更新数据库
-        return@withContext if (newEventId != null && newEventId != medication.calendarEventId) {
-            val updated = medication.copy(calendarEventId = newEventId)
-            repository.updateMedication(updated)
-            updated
-        } else {
-            medication
+            // 如果生成了新的事件ID，更新数据库
+            return@withContext if (newEventId != null && newEventId != medication.calendarEventId) {
+                val updated = medication.copy(calendarEventId = newEventId)
+                repository.updateMedication(updated)
+                updated
+            } else {
+                medication
+            }
         }
     }
 

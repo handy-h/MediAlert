@@ -37,6 +37,15 @@ fun MedicationListScreen(
     var showReduceStockDialog by remember { mutableStateOf(false) }
     var selectedMedication by remember { mutableStateOf<Medication?>(null) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearErrorMessage()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -58,7 +67,8 @@ fun MedicationListScreen(
             FloatingActionButton(onClick = onAddMedication) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_medication))
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         if (medications.isEmpty()) {
             EmptyState(
@@ -105,37 +115,41 @@ fun MedicationListScreen(
         }
     }
 
-    if (showAddStockDialog && selectedMedication != null) {
-        StockInputDialog(
-            title = stringResource(R.string.stock_label),
-            medication = selectedMedication!!,
-            isAddition = true,
-            onConfirm = { quantity, reason ->
-                viewModel.addStock(selectedMedication!!.id, quantity, reason)
-                showAddStockDialog = false
-                selectedMedication = null
-            },
-            onDismiss = {
-                showAddStockDialog = false
-                selectedMedication = null
-            }
-        )
+    if (showAddStockDialog) {
+        selectedMedication?.let { med ->
+            StockInputDialog(
+                title = stringResource(R.string.stock_label),
+                medication = med,
+                isAddition = true,
+                onConfirm = { quantity, reason ->
+                    viewModel.addStock(med.id, quantity, reason)
+                    showAddStockDialog = false
+                    selectedMedication = null
+                },
+                onDismiss = {
+                    showAddStockDialog = false
+                    selectedMedication = null
+                }
+            )
+        }
     }
 
-    if (showReduceStockDialog && selectedMedication != null) {
-        StockInputDialog(
-            title = stringResource(R.string.advance_consume),
-            medication = selectedMedication!!,
-            isAddition = false,
-            onConfirm = { quantity, reason ->
-                viewModel.reduceStock(selectedMedication!!.id, quantity, reason)
-                showReduceStockDialog = false
-                selectedMedication = null
-            },
-            onDismiss = {
-                showReduceStockDialog = false
-                selectedMedication = null
-            }
-        )
+    if (showReduceStockDialog) {
+        selectedMedication?.let { med ->
+            StockInputDialog(
+                title = stringResource(R.string.advance_consume),
+                medication = med,
+                isAddition = false,
+                onConfirm = { quantity, reason ->
+                    viewModel.reduceStock(med.id, quantity, reason)
+                    showReduceStockDialog = false
+                    selectedMedication = null
+                },
+                onDismiss = {
+                    showReduceStockDialog = false
+                    selectedMedication = null
+                }
+            )
+        }
     }
 }

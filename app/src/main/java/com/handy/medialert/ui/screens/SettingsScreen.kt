@@ -71,6 +71,17 @@ fun SettingsScreen(
         isLoadingCalendars = false
     }
 
+    // 精确闹钟权限状态（Android 12+）：canScheduleExactAlarms 为 Binder IPC，延迟到后台线程
+    var canScheduleExactAlarms by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            withContext(Dispatchers.IO) {
+                val alarmManager = context.getSystemService(android.app.AlarmManager::class.java)
+                canScheduleExactAlarms = alarmManager != null && alarmManager.canScheduleExactAlarms()
+            }
+        }
+    }
+
     // CSV 文件选择器
     val filePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -277,7 +288,7 @@ fun SettingsScreen(
             // 关于
             ListItem(
                 headlineContent = { Text(stringResource(R.string.about)) },
-                supportingContent = { Text(stringResource(R.string.about_text)) }
+                supportingContent = { Text(stringResource(R.string.about_text, com.handy.medialert.BuildConfig.VERSION_NAME)) }
             )
 
             HorizontalDivider()
@@ -302,9 +313,7 @@ fun SettingsScreen(
             }
 
             // 精确闹钟权限状态（Android 12+）
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val alarmManager = context.getSystemService(android.app.AlarmManager::class.java)
-                if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms) {
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.exact_alarm_permission_title)) },
                         supportingContent = { Text(stringResource(R.string.exact_alarm_permission_message)) },
@@ -316,7 +325,6 @@ fun SettingsScreen(
                         }
                     )
                 }
-            }
         }
     }
 
