@@ -56,6 +56,7 @@
     <string name="import_data">Import Data</string>
     <string name="import_description">Import medication data from CSV</string>
     <string name="importing">Importing…</string>
+    <string name="loading">Loading…</string>
     <string name="about">About</string>
     <string name="about_text">MediAlert v%1$s</string>
     <string name="reset_reminders">Reset All Reminders</string>
@@ -128,12 +129,12 @@
     <string name="unnamed_calendar">Unnamed</string>
 
     <!-- Medication Card -->
-    <string name="spec_display">Spec: %s | %d%s/%s</string>
+    <string name="spec_display">Spec: %s | %.0f%s/%s</string>
     <string name="stock_display_label">Current stock: %s</string>
     <string name="depletion_display">Depletes: %s %s</string>
     <string name="dosage_display">Dosage: %s</string>
-    <string name="freq_every_x_days_format">Every %d days %s%s</string>
-    <string name="freq_every_xth_day_format">Every %dth day %s%s</string>
+    <string name="freq_every_x_days_format">Every %d days %.1f%s</string>
+    <string name="freq_every_xth_day_format">Every %dth day %.1f%s</string>
 
     <!-- Stock Input Dialog -->
     <string name="package_count_label">%s count</string>
@@ -149,7 +150,7 @@
     <string name="merged_alert_date_display">📅 %s %s %s</string>
 
     <!-- Settings Import/Export -->
-    <string name="selected">Selected</string>
+    <string name="item_selected">Selected</string>
     <string name="csv_import_success_count">Imported %d successfully</string>
     <string name="csv_import_skip_count">Skipped %d empty rows</string>
     <string name="csv_import_fail_count">%d failed</string>
@@ -182,6 +183,10 @@
     <string name="csv_import_unknown_error">Row %d: unknown error</string>
     <string name="csv_import_row_error">Row %d: %s</string>
     <string name="csv_import_file_failed">File read failed: %s</string>
+
+    <!-- 操作反馈 -->
+    <string name="error_reduce_exceeds_stock">Cannot reduce more than current stock (%s)</string>
+    <string name="operation_failed">Operation failed, please try again</string>
 
     <!-- AlarmReceiver fallback -->
     <string name="medication_fallback">Medication</string>
