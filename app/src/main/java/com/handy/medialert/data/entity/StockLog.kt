@@ -2,6 +2,7 @@ package com.handy.medialert.data.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
@@ -13,7 +14,8 @@ import androidx.room.PrimaryKey
             childColumns = ["medicationId"],
             onDelete = ForeignKey.CASCADE
         )
-    ]
+    ],
+    indices = [Index("medicationId")]  // 添加索引避免全表扫描
 )
 data class StockLog(
     @PrimaryKey(autoGenerate = true)

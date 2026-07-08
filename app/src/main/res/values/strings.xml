@@ -137,8 +137,8 @@
     <string name="stock_display_label">当前库存：%s</string>
     <string name="depletion_display">耗尽：%s %s</string>
     <string name="dosage_display">用药：%s</string>
-    <string name="freq_every_x_days_format">每%d天%s%s</string>
-    <string name="freq_every_xth_day_format">每隔%d天%s%s</string>
+    <string name="freq_every_x_days_format">每%d天%.1f%s</string>
+    <string name="freq_every_xth_day_format">每隔%d天%.1f%s</string>
 
     <!-- 库存操作弹窗 -->
     <string name="package_count_label">%s数</string>
@@ -154,7 +154,7 @@
     <string name="merged_alert_date_display">📅 %s %s %s</string>
 
     <!-- 设置页导入/导出消息 -->
-    <string name="selected">已选择</string>
+    <string name="item_selected">已选择</string>
     <string name="csv_import_success_count">成功导入 %d 条</string>
     <string name="csv_import_skip_count">跳过 %d 条空行</string>
     <string name="csv_import_fail_count">%d 条失败</string>

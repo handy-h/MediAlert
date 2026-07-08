@@ -167,7 +167,7 @@ fun SettingsScreen(
                     } else {
                         Text(
                             selectedCalendarId?.let { id ->
-                                calendars.find { it.id == id }?.displayName ?: stringResource(R.string.selected)
+                                calendars.find { it.id == id }?.displayName ?: stringResource(R.string.item_selected)
                             } ?: stringResource(R.string.calendar_not_set)
                         )
                     }

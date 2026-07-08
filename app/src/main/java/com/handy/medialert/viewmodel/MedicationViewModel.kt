@@ -34,7 +34,7 @@ import java.time.format.DateTimeFormatter
  * 负责 UI 状态管理和用户操作响应
  * 提醒相关逻辑已委托给 ReminderManager
  */
-class MedicationViewModel(
+class MedicationViewModel @JvmOverloads constructor(
     application: Application,
     private val reminderManager: ReminderManager = ReminderManager(
         application,

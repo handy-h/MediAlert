@@ -33,7 +33,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "medialert_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                )
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .fallbackToDestructiveMigration(true)
                     .build()
                 INSTANCE = instance
                 instance
@@ -69,7 +71,27 @@ val MIGRATION_2_3 = androidx.room.migration.Migration(2, 3) { database ->
             createdAt INTEGER NOT NULL DEFAULT 0
         )
     """)
-    database.execSQL("INSERT INTO medications_new SELECT id, genericName, brandName, specification, packageUnit, dosageForm, CAST(package_size AS REAL), currentStock, frequencyType, frequencyValue, dailyDosage, startDate, isActive, calendarEventId, createdAt FROM medications")
+    // 尝试从旧表迁移数据，使用 COALESCE 处理可能的 NULL
+    database.execSQL("""
+        INSERT INTO medications_new 
+        SELECT 
+            id, 
+            COALESCE(genericName, '') as genericName,
+            brandName,
+            specification,
+            COALESCE(packageUnit, '盒') as packageUnit,
+            COALESCE(dosageForm, '片') as dosageForm,
+            COALESCE(CAST(packageSize AS REAL), 0.0) as packageSize,
+            COALESCE(CAST(currentStock AS REAL), 0.0) as currentStock,
+            COALESCE(frequencyType, 'EVERY_X_DAYS') as frequencyType,
+            COALESCE(frequencyValue, 1) as frequencyValue,
+            COALESCE(CAST(dailyDosage AS REAL), 0.0) as dailyDosage,
+            startDate,
+            COALESCE(isActive, 1) as isActive,
+            calendarEventId,
+            COALESCE(createdAt, 0) as createdAt
+        FROM medications
+    """)
     database.execSQL("DROP TABLE medications")
     database.execSQL("ALTER TABLE medications_new RENAME TO medications")
 }
