@@ -64,8 +64,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 根据输入选择构建类型
       - name: Build Debug

@@ -33,8 +33,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 完整代码分析
       - name: Full Code Analysis
@@ -105,8 +110,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 检查依赖更新
       - name: Check Dependency Updates
