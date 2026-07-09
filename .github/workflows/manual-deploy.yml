@@ -25,29 +25,59 @@ on:
         default: true
         type: boolean
 
+# 并发控制：生产环境只能有一个部署在进行
+concurrency:
+  group: manual-deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
 env:
   JAVA_VERSION: '17'
-  GRADLE_VERSION: '8.7'
+  GRADLE_VERSION: '9.5.0'
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=true
+    -Dorg.gradle.caching=true
+    -Dorg.gradle.configureondemand=true
+    -Dorg.gradle.parallel=true
+    -Dorg.gradle.jvmargs=-Xmx4g
+    -Dfile.encoding=UTF-8
 
 jobs:
   # 验证输入
   validate:
     name: Validate Input
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check Environment
         run: |
-          if [ "${{ github.event.inputs.environment }}" == "production" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          ENV="${{ github.event.inputs.environment }}"
+          REF="${{ github.ref }}"
+          
+          echo "Environment: $ENV"
+          echo "Ref: $REF"
+          
+          if [ "$ENV" == "production" ] && [ "$REF" != "refs/heads/main" ]; then
             echo "❌ 生产环境只能从 main 分支部署"
+            echo "当前分支: $REF"
             exit 1
           fi
+          
           echo "✅ 环境验证通过"
+
+      - name: Log Deploy Info
+        run: |
+          echo "🚀 手动部署启动"
+          echo "环境: ${{ github.event.inputs.environment }}"
+          echo "构建类型: ${{ github.event.inputs.build_type }}"
+          echo "触发者: ${{ github.actor }}"
+          echo "时间: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)"
 
   # 构建
   build:
     name: Build
     runs-on: ubuntu-latest
     needs: validate
+    timeout-minutes: 30
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -59,18 +89,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: false
 
-      - name: Setup Gradlew
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "gradlew not found, creating wrapper script..."
-            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
-          fi
-          chmod +x gradlew
+      - name: Grant Gradlew Execute Permission
+        run: chmod +x gradlew
 
       # 根据输入选择构建类型
       - name: Build Debug
@@ -85,13 +114,34 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
+      # 签名 Release APK
+      - name: Sign Release APK
+        if: github.event.inputs.build_type == 'release'
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEY }}
+          alias: ${{ secrets.RELEASE_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+        continue-on-error: true
+
       # 上传构建产物
       - name: Upload Build
         uses: actions/upload-artifact@v4
         with:
-          name: manual-build-${{ github.event.inputs.environment }}-${{ github.event.inputs.build_type }}
+          name: manual-build-${{ github.event.inputs.environment }}-${{ github.event.inputs.build_type }}-${{ github.run_id }}
           path: app/build/outputs/apk/${{ github.event.inputs.build_type }}/*.apk
           retention-days: 14
+          if-no-files-found: error
+
+      # 输出构建信息
+      - name: Output Build Info
+        run: |
+          echo "✅ 构建完成"
+          ls -lh app/build/outputs/apk/${{ github.event.inputs.build_type }}/*.apk || true
 
   # 部署到 Staging
   deploy-staging:
@@ -99,14 +149,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event.inputs.environment == 'staging'
+    timeout-minutes: 15
     steps:
       - name: Download Build
         uses: actions/download-artifact@v4
         with:
-          name: manual-build-staging-${{ github.event.inputs.build_type }}
+          name: manual-build-staging-${{ github.event.inputs.build_type }}-${{ github.run_id }}
           path: ./artifacts
 
-      # 这里可以添加 Firebase App Distribution 或其他分发渠道
+      # 部署到 Firebase App Distribution
       - name: Deploy to Firebase App Distribution
         if: env.FIREBASE_APP_ID != ''
         uses: wzieba/Firebase-Distribution-Github-Action@v1
@@ -116,12 +167,36 @@ jobs:
           groups: staging-testers
           file: ./artifacts/app-${{ github.event.inputs.build_type }}.apk
         continue-on-error: true
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+
+      # 创建 GitHub Release Draft (Staging)
+      - name: Create Staging Release Draft
+        if: github.event.inputs.build_type == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          prerelease: true
+          name: "Staging Build - ${{ github.run_id }}"
+          body: |
+            ## 🧪 Staging Build
+            
+            - **环境**: Staging
+            - **构建类型**: ${{ github.event.inputs.build_type }}
+            - **触发者**: ${{ github.actor }}
+            - **时间**: ${{ github.event.repository.updated_at }}
+            - **Commit**: ${{ github.sha }}
+          files: ./artifacts/*.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
       - name: Staging Deploy Info
         run: |
           echo "✅ Staging 部署完成"
           echo "构建类型: ${{ github.event.inputs.build_type }}"
           echo "环境: ${{ github.event.inputs.environment }}"
+          echo "产物:"
+          ls -lh ./artifacts/*.apk || true
 
   # 部署到 Production
   deploy-production:
@@ -129,19 +204,31 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event.inputs.environment == 'production'
-    environment: production  # 需要 GitHub Environment 审批
+    environment: production
+    timeout-minutes: 15
     steps:
       - name: Download Build
         uses: actions/download-artifact@v4
         with:
-          name: manual-build-production-${{ github.event.inputs.build_type }}
+          name: manual-build-production-${{ github.event.inputs.build_type }}-${{ github.run_id }}
           path: ./artifacts
 
       # 创建 GitHub Release Draft
-      - name: Create Release Draft
+      - name: Create Production Release Draft
         uses: softprops/action-gh-release@v1
         with:
           draft: true
+          name: "Production Build - ${{ github.run_id }}"
+          body: |
+            ## 🚀 Production Build
+            
+            - **环境**: Production
+            - **构建类型**: ${{ github.event.inputs.build_type }}
+            - **触发者**: ${{ github.actor }}
+            - **时间**: ${{ github.event.repository.updated_at }}
+            - **Commit**: ${{ github.sha }}
+            
+            ⚠️ 请验证后再发布此 Release。
           files: ./artifacts/*.apk
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -150,6 +237,8 @@ jobs:
           echo "✅ Production 部署完成"
           echo "构建类型: ${{ github.event.inputs.build_type }}"
           echo "环境: ${{ github.event.inputs.environment }}"
+          echo "产物:"
+          ls -lh ./artifacts/*.apk || true
 
   # 通知
   notify:
@@ -157,7 +246,23 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-staging, deploy-production]
     if: always() && github.event.inputs.notify == 'true'
+    timeout-minutes: 5
     steps:
+      - name: Determine Deploy Status
+        id: deploy-status
+        run: |
+          STAGING_RESULT="${{ needs.deploy-staging.result }}"
+          PROD_RESULT="${{ needs.deploy-production.result }}"
+          
+          if [ "$STAGING_RESULT" == "success" ] || [ "$PROD_RESULT" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Staging: $STAGING_RESULT"
+          echo "Production: $PROD_RESULT"
+
       - name: Notify Slack
         if: env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v1
@@ -190,7 +295,20 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*状态:*\n${{ needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success' ? '✅ 成功' : '❌ 失败' }}"
+                      "text": "*状态:*\n${{ steps.deploy-status.outputs.status == 'success' && '✅ 成功' || '❌ 失败' }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "查看详情"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
                   ]
                 }
@@ -198,3 +316,4 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

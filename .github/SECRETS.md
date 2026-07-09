@@ -55,6 +55,10 @@
 - `EMAIL_PASSWORD`: SMTP 密码或应用专用密码
 - `NOTIFICATION_EMAIL`: 接收通知的邮箱地址
 
+### Firebase 部署 (可选)
+- `FIREBASE_APP_ID`: Firebase App ID
+- `FIREBASE_SERVICE_ACCOUNT`: Firebase 服务账号 JSON 内容
+
 ## 配置步骤
 
 1. 打开 GitHub 仓库页面
@@ -66,3 +70,26 @@
 ## 验证配置
 
 推送代码后，在 Actions 标签页查看流水线运行状态。
+
+## 安全提示
+
+⚠️ **重要**: `release.jks` 文件已存在于仓库中，这存在安全风险。建议：
+
+1. 从 Git 历史中移除 `release.jks`:
+   ```bash
+   git filter-branch --force --index-filter \
+     'git rm --cached --ignore-unmatch release.jks' \
+     --prune-empty --tag-name-filter cat -- --all
+   ```
+
+2. 或者使用 `git-filter-repo`:
+   ```bash
+   pip install git-filter-repo
+   git filter-repo --path release.jks --invert-paths
+   ```
+
+3. 将 `release.jks` 添加到 `.gitignore`
+
+4. 在 GitHub Secrets 中配置 `RELEASE_SIGNING_KEY`
+
+5. 强制推送清理后的历史（注意：这会重写 Git 历史，团队需要重新克隆）

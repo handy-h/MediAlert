@@ -9,7 +9,7 @@
 ```
 代码提交
     ↓
-代码质量检查 (Detekt + Android Lint + 安全扫描)
+代码质量检查 (Detekt + Android Lint + 安全扫描 + ktlint)
     ↓
 单元测试 (JVM 测试 + 覆盖率)
     ↓
@@ -30,7 +30,7 @@
 |------|---------|---------|
 | Push | main, develop, feature/** | 全部 (Release 构建仅限 main) |
 | Pull Request | main, develop | 代码质量 + 单元测试 + 集成测试 + Debug 构建 |
-| Release Created | - | 完整流水线 + GitHub 发布 |
+| Release Published | - | 完整流水线 + GitHub 发布 |
 
 ## 必需的环境变量
 
@@ -66,12 +66,15 @@ base64 -i debug.keystore -w 0 | xclip -selection clipboard  # Linux
 | `EMAIL_USERNAME` | SMTP 邮箱用户名 | 邮件通知 |
 | `EMAIL_PASSWORD` | SMTP 邮箱密码 | 邮件通知 |
 | `NOTIFICATION_EMAIL` | 通知接收邮箱 | 邮件通知 |
+| `FIREBASE_APP_ID` | Firebase App ID | Firebase 分发 |
+| `FIREBASE_SERVICE_ACCOUNT` | Firebase 服务账号 | Firebase 分发 |
 
 ## 流水线特性
 
 ### 1. 代码质量检查
-- **Detekt**: Kotlin 静态代码分析
+- **Detekt**: Kotlin 静态代码分析，SARIF 报告上传到 GitHub Security
 - **Android Lint**: Android 特定问题检查
+- **ktlint**: Kotlin 代码格式检查
 - **Dependency Check**: 依赖漏洞扫描 (OWASP)
 
 ### 2. 测试策略
@@ -86,12 +89,21 @@ base64 -i debug.keystore -w 0 | xclip -selection clipboard  # Linux
 
 ### 4. 安全特性
 - 签名密钥仅存在于构建阶段，构建后自动清理
+- Gradle Wrapper 验证
 - 依赖漏洞扫描
-- APK 签名验证
+- APK/AAB 签名验证
 
 ### 5. 通知机制
-- **Slack**: 构建成功/失败通知
+- **Slack**: 构建成功/失败通知，带查看详情按钮
 - **Email**: 构建失败时发送邮件
+
+### 6. 并发控制
+- 同一分支/PR 只保留最新运行，自动取消旧的
+- 生产环境部署串行执行
+
+### 7. 超时控制
+- 每个 job 都有合理的超时时间
+- 防止长时间挂起消耗资源
 
 ## 本地测试
 
@@ -101,6 +113,7 @@ base64 -i debug.keystore -w 0 | xclip -selection clipboard  # Linux
 # 代码质量检查
 ./gradlew lintDebug
 ./gradlew detekt
+./gradlew ktlintCheck
 
 # 单元测试
 ./gradlew testDebugUnitTest
@@ -131,15 +144,16 @@ base64 -i debug.keystore -w 0 | xclip -selection clipboard  # Linux
    - 验证 Base64 编码是否正确
 
 4. **内存不足**
-   - 调整 `gradle.properties` 中的 JVM 参数
+   - 调整 `GRADLE_OPTS` 中的 JVM 参数
    - 增加 GitHub Actions runner 内存限制
 
 ## 优化建议
 
-1. **Gradle 缓存**: 已启用 `actions/setup-java` 的缓存功能
+1. **Gradle 缓存**: 已启用 `actions/setup-java` 和 `gradle/actions/setup-gradle` 的缓存功能
 2. **并行执行**: 代码质量检查和单元测试可以并行
 3. **条件执行**: Release 构建仅在 main 分支执行
 4. **产物保留**: Debug 产物保留 7 天，Release 保留 14 天
+5. **并发控制**: 自动取消旧的运行，节省资源
 
 ## 扩展功能
 

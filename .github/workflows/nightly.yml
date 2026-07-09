@@ -4,17 +4,36 @@ on:
   schedule:
     # 每天凌晨 2:00 运行 (UTC+8 对应 18:00 UTC)
     - cron: '0 18 * * *'
-  workflow_dispatch:  # 支持手动触发
+  workflow_dispatch:
+    inputs:
+      full_analysis:
+        description: '执行完整代码分析'
+        required: false
+        default: true
+        type: boolean
+
+# 并发控制：夜间构建不取消旧的
+concurrency:
+  group: nightly-build
+  cancel-in-progress: false
 
 env:
   JAVA_VERSION: '17'
-  GRADLE_VERSION: '8.7'
+  GRADLE_VERSION: '9.5.0'
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=true
+    -Dorg.gradle.caching=true
+    -Dorg.gradle.configureondemand=true
+    -Dorg.gradle.parallel=true
+    -Dorg.gradle.jvmargs=-Xmx4g
+    -Dfile.encoding=UTF-8
 
 jobs:
   # 夜间构建 - 完整测试和构建
   nightly-build:
     name: Nightly Build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -28,27 +47,28 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: false
 
-      - name: Setup Gradlew
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "gradlew not found, creating wrapper script..."
-            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
-          fi
-          chmod +x gradlew
+      - name: Grant Gradlew Execute Permission
+        run: chmod +x gradlew
 
       # 完整代码分析
       - name: Full Code Analysis
+        if: github.event.inputs.full_analysis != 'false'
         run: |
-          ./gradlew lintDebug || true
-          ./gradlew detekt || true
+          ./gradlew lintDebug --continue || true
+          ./gradlew detekt --continue || true
+          ./gradlew ktlintCheck --continue || true
 
       # 运行所有测试
-      - name: Run All Tests
+      - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
       # 构建 Debug 和 Release
@@ -62,38 +82,69 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
+      # 生成构建报告
+      - name: Generate Build Report
+        run: |
+          REPORT_FILE="build-report.md"
+          echo "# 🌙 MediAlert Nightly Build Report" > $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "| 项目 | 值 |" >> $REPORT_FILE
+          echo "|------|-----|" >> $REPORT_FILE
+          echo "| 日期 | $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC) |" >> $REPORT_FILE
+          echo "| Commit | ${{ github.sha }} |" >> $REPORT_FILE
+          echo "| 分支 | ${{ github.ref_name }} |" >> $REPORT_FILE
+          echo "| 触发 | ${{ github.event_name == 'schedule' && '定时调度' || '手动触发' }} |" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "## Build Status" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "✅ All builds completed successfully" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "## Artifacts" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "- Debug APK" >> $REPORT_FILE
+          echo "- Release APK" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "## Next Steps" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "- [ ] Review build artifacts" >> $REPORT_FILE
+          echo "- [ ] Run smoke tests" >> $REPORT_FILE
+          echo "- [ ] Check for new dependency updates" >> $REPORT_FILE
+          
+          cat $REPORT_FILE
+
       # 上传构建产物
       - name: Upload Nightly Builds
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-builds
+          name: nightly-builds-${{ github.run_id }}
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/*.apk
           retention-days: 7
-
-      # 生成构建报告
-      - name: Generate Build Report
-        run: |
-          echo "# Nightly Build Report" > build-report.md
-          echo "Date: $(date)" >> build-report.md
-          echo "Commit: ${{ github.sha }}" >> build-report.md
-          echo "" >> build-report.md
-          echo "## Build Status" >> build-report.md
-          echo "✅ All builds completed successfully" >> build-report.md
+          if-no-files-found: error
 
       # 上传报告
       - name: Upload Build Report
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-build-report
+          name: nightly-build-report-${{ github.run_id }}
           path: build-report.md
           retention-days: 7
+
+      # 输出构建信息
+      - name: Output Build Summary
+        run: |
+          echo "✅ Nightly build completed"
+          echo "Debug APK:"
+          ls -lh app/build/outputs/apk/debug/*.apk || true
+          echo "Release APK:"
+          ls -lh app/build/outputs/apk/release/*.apk || true
 
   # 依赖更新检查
   dependency-check:
     name: Check Dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -105,37 +156,116 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: false
 
-      - name: Setup Gradlew
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "gradlew not found, creating wrapper script..."
-            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
-          fi
-          chmod +x gradlew
+      - name: Grant Gradlew Execute Permission
+        run: chmod +x gradlew
 
       # 检查依赖更新
       - name: Check Dependency Updates
-        run: ./gradlew dependencyUpdates -Drevision=release || true
+        run: ./gradlew dependencyUpdates -Drevision=release --continue || true
 
       # 安全扫描
       - name: Security Scan
-        run: ./gradlew dependencyCheckAnalyze || true
+        run: ./gradlew dependencyCheckAnalyze --continue || true
+
+      # 生成依赖报告摘要
+      - name: Generate Dependency Report Summary
+        run: |
+          REPORT_FILE="dependency-report.md"
+          echo "# 📦 Dependency Report" > $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          echo "生成时间: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)" >> $REPORT_FILE
+          echo "" >> $REPORT_FILE
+          
+          if [ -f "build/dependencyUpdates/report.txt" ]; then
+            echo "## Available Updates" >> $REPORT_FILE
+            echo '```' >> $REPORT_FILE
+            cat build/dependencyUpdates/report.txt >> $REPORT_FILE
+            echo '```' >> $REPORT_FILE
+          else
+            echo "## Available Updates" >> $REPORT_FILE
+            echo "No dependency update report found." >> $REPORT_FILE
+          fi
+          
+          cat $REPORT_FILE
 
       # 上传依赖报告
       - name: Upload Dependency Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dependency-reports
+          name: dependency-reports-${{ github.run_id }}
           path: |
             build/dependencyUpdates/report.txt
             build/reports/dependency-check-report.html
+            dependency-report.md
           retention-days: 7
+          if-no-files-found: warn
+
+      # 创建 Issue 如果有依赖更新
+      - name: Create Dependency Update Issue
+        if: hashFiles('build/dependencyUpdates/report.txt') != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'build/dependencyUpdates/report.txt';
+            
+            if (!fs.existsSync(path)) {
+              console.log('No dependency update report found');
+              return;
+            }
+            
+            const content = fs.readFileSync(path, 'utf8');
+            
+            // 检查是否有可更新项
+            if (!content.includes('->')) {
+              console.log('No dependency updates available');
+              return;
+            }
+            
+            const title = `📦 Dependency Updates Available - ${new Date().toISOString().split('T')[0]}`;
+            const body = `## Available Dependency Updates\n\n\`\`\`\n${content}\n\`\`\`\n\n*This issue was automatically generated by the nightly build workflow.*`;
+            
+            // 检查是否已存在相同标题的 open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dependencies'
+            });
+            
+            const existingIssue = issues.data.find(i => i.title.startsWith('📦 Dependency Updates Available'));
+            
+            if (existingIssue) {
+              // 更新现有 issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: body
+              });
+              console.log(`Updated issue #${existingIssue.number}`);
+            } else {
+              // 创建新 issue
+              const newIssue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['dependencies', 'automated']
+              });
+              console.log(`Created issue #${newIssue.data.number}`);
+            }
+        continue-on-error: true
 
   # 通知
   notify:
@@ -143,7 +273,25 @@ jobs:
     runs-on: ubuntu-latest
     needs: [nightly-build, dependency-check]
     if: always()
+    timeout-minutes: 5
     steps:
+      - name: Determine Overall Status
+        id: status
+        run: |
+          BUILD_RESULT="${{ needs.nightly-build.result }}"
+          DEP_RESULT="${{ needs.dependency-check.result }}"
+          
+          if [ "$BUILD_RESULT" == "success" ] && [ "$DEP_RESULT" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          elif [ "$BUILD_RESULT" == "success" ]; then
+            echo "status=partial" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Build: $BUILD_RESULT"
+          echo "Dependency: $DEP_RESULT"
+
       - name: Notify Slack
         if: env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v1
@@ -164,7 +312,7 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*构建状态:*\n${{ needs.nightly-build.result == 'success' && '✅ 成功' || '❌ 失败' }}"
+                      "text": "*构建状态:*\n${{ steps.status.outputs.status == 'success' && '✅ 成功' || steps.status.outputs.status == 'partial' && '⚠️ 部分成功' || '❌ 失败' }}"
                     },
                     {
                       "type": "mrkdwn",
@@ -176,7 +324,20 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*日期:*\n$(date +%Y-%m-%d)"
+                      "text": "*日期:*\n${{ github.run_id }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "查看详情"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
                   ]
                 }
@@ -184,3 +345,22 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+      # 如果构建失败，创建 Issue
+      - name: Create Failure Issue
+        if: needs.nightly-build.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🚨 Nightly Build Failed - ${new Date().toISOString().split('T')[0]}`;
+            const body = `## Nightly Build Failed\n\n- **Run ID**: ${{ github.run_id }}\n- **Commit**: ${{ github.sha }}\n- **Branch**: ${{ github.ref_name }}\n\n[查看运行详情](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This issue was automatically generated.*`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'automated', 'nightly-build']
+            });
+        continue-on-error: true

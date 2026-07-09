@@ -1,0 +1,74 @@
+# 新增: 文档同步工作流
+name: Documentation Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - '.github/workflows/README.md'
+  workflow_dispatch:
+
+jobs:
+  # 验证文档
+  validate-docs:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check Markdown Links
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --timeout 30 --max-retries 3
+          fail: false
+        continue-on-error: true
+
+      - name: Check Markdown Format
+        uses: DavidAnson/markdownlint-cli2-action@v15
+        with:
+          globs: |
+            **/*.md
+            !node_modules/**
+        continue-on-error: true
+
+  # 生成文档站点
+  generate-docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+    needs: validate-docs
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Documentation Tools
+        run: |
+          npm install -g @compodoc/compodoc
+
+      # 生成 API 文档 (如果项目支持)
+      - name: Generate API Documentation
+        run: |
+          # 这里可以添加生成文档的命令
+          # 例如: compodoc -p tsconfig.json -d docs/api
+          echo "Documentation generation placeholder"
+        continue-on-error: true
+
+      # 上传文档
+      - name: Upload Documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/
+          retention-days: 30
+        continue-on-error: true

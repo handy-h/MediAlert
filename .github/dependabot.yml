@@ -13,15 +13,38 @@ updates:
       timezone: "Asia/Shanghai"
     open-pull-requests-limit: 10
     reviewers:
-      - "your-username"  # 替换为你的 GitHub 用户名
+      - "mikelon"  # 替换为你的 GitHub 用户名
     assignees:
-      - "your-username"
+      - "mikelon"
     labels:
       - "dependencies"
       - "gradle"
     commit-message:
       prefix: "deps"
       include: "scope"
+    # 分组更新，减少 PR 数量
+    groups:
+      androidx:
+        patterns:
+          - "androidx.*"
+        update-types:
+          - "minor"
+          - "patch"
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.kotlinx*"
+        update-types:
+          - "minor"
+          - "patch"
+      testing:
+        patterns:
+          - "junit*"
+          - "io.mockk*"
+          - "androidx.test*"
+        update-types:
+          - "minor"
+          - "patch"
     # 忽略某些依赖 (如果需要)
     # ignore:
     #   - dependency-name: "androidx.compose:compose-bom"
@@ -37,12 +60,19 @@ updates:
       timezone: "Asia/Shanghai"
     open-pull-requests-limit: 5
     reviewers:
-      - "your-username"
+      - "mikelon"
     assignees:
-      - "your-username"
+      - "mikelon"
     labels:
       - "dependencies"
       - "github-actions"
     commit-message:
       prefix: "ci"
       include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+        update-types:
+          - "minor"
+          - "patch"

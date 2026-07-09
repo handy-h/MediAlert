@@ -1,0 +1,154 @@
+# 新增: Issue/PR 管理工作流
+name: Issue & PR Management
+
+on:
+  issues:
+    types: [opened, closed, reopened]
+  pull_request:
+    types: [opened, closed, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  # 自动标记 stale issues
+  stale-issues:
+    name: Mark Stale Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 10
+    steps:
+      - name: Mark Stale Issues
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
+          stale-pr-message: 'This PR has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          days-before-stale: 30
+          days-before-close: 7
+          exempt-issue-labels: 'pinned,security,bug'
+          exempt-pr-labels: 'pinned,security'
+
+  # Issue 自动分类
+  issue-labeler:
+    name: Auto Label Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    timeout-minutes: 5
+    steps:
+      - name: Label Issue by Content
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const labels = [];
+            
+            // 根据标题和内容自动分类
+            if (title.includes('bug') || title.includes('错误') || title.includes('崩溃') || title.includes('crash')) {
+              labels.push('bug');
+            }
+            
+            if (title.includes('feature') || title.includes('功能') || title.includes('enhancement') || title.includes('请求')) {
+              labels.push('feature');
+            }
+            
+            if (title.includes('doc') || title.includes('文档') || title.includes('readme')) {
+              labels.push('documentation');
+            }
+            
+            if (title.includes('performance') || title.includes('性能') || title.includes('slow') || title.includes('卡顿')) {
+              labels.push('performance');
+            }
+            
+            if (title.includes('security') || title.includes('安全') || title.includes('vulnerability')) {
+              labels.push('security');
+            }
+            
+            if (title.includes('ui') || title.includes('界面') || title.includes('显示') || title.includes('布局')) {
+              labels.push('ui');
+            }
+            
+            if (title.includes('database') || title.includes('数据') || title.includes('room') || title.includes('sql')) {
+              labels.push('database');
+            }
+            
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: labels
+              });
+              console.log(`Added labels: ${labels.join(', ')}`);
+            }
+
+  # 欢迎新贡献者
+  welcome:
+    name: Welcome Contributors
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'issues' && github.event.action == 'opened') || (github.event_name == 'pull_request' && github.event.action == 'opened')
+    timeout-minutes: 5
+    steps:
+      - name: Check First Contribution
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const creator = context.payload[github.event_name].user.login;
+            
+            // 检查用户是否已有贡献
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              creator: creator,
+              state: 'all',
+              per_page: 1
+            });
+            
+            const isFirstContribution = issues.data.length === 0 || 
+              (issues.data.length === 1 && issues.data[0].number === context.issue.number);
+            
+            if (isFirstContribution) {
+              const body = `## 🎉 欢迎 @${creator}!\n\n感谢您为 MediAlert 项目做出贡献！\n\n请确保：\n- [ ] 阅读了 [贡献指南](CONTRIBUTING.md)\n- [ ] 遵循了代码规范\n- [ ] 添加了必要的测试\n\n如有任何问题，欢迎随时提问！`;
+              
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+  # PR 合并后清理
+  pr-cleanup:
+    name: PR Cleanup
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    timeout-minutes: 5
+    steps:
+      - name: Delete Branch if Merged
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            if (pr.merged) {
+              const branch = pr.head.ref;
+              
+              // 不删除 main 和 develop 分支
+              if (branch !== 'main' && branch !== 'develop') {
+                try {
+                  await github.rest.git.deleteRef({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: `heads/${branch}`
+                  });
+                  console.log(`Deleted branch: ${branch}`);
+                } catch (e) {
+                  console.log(`Could not delete branch ${branch}: ${e.message}`);
+                }
+              }
+            }
+        continue-on-error: true

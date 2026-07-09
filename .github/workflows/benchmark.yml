@@ -1,0 +1,132 @@
+# 新增: 基准测试工作流
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '9.5.0'
+
+jobs:
+  # 构建性能基准测试
+  build-benchmark:
+    name: Build Performance Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Grant Gradlew Execute Permission
+        run: chmod +x gradlew
+
+      # 清理并测量构建时间
+      - name: Clean Build Benchmark
+        run: |
+          echo "Running clean build benchmark..."
+          ./gradlew clean
+          
+          START_TIME=$(date +%s)
+          ./gradlew assembleDebug
+          END_TIME=$(date +%s)
+          
+          BUILD_TIME=$((END_TIME - START_TIME))
+          echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_ENV
+          echo "Clean build time: ${BUILD_TIME}s"
+
+      # 增量构建基准
+      - name: Incremental Build Benchmark
+        run: |
+          # 修改一个文件触发增量构建
+          echo "// Incremental build test" >> app/src/main/java/com/handy/medialert/MainActivity.kt
+          
+          START_TIME=$(date +%s)
+          ./gradlew assembleDebug
+          END_TIME=$(date +%s)
+          
+          INCREMENTAL_TIME=$((END_TIME - START_TIME))
+          echo "INCREMENTAL_TIME=$INCREMENTAL_TIME" >> $GITHUB_ENV
+          echo "Incremental build time: ${INCREMENTAL_TIME}s"
+          
+          # 恢复文件
+          git checkout app/src/main/java/com/handy/medialert/MainActivity.kt
+
+      # 生成基准报告
+      - name: Generate Benchmark Report
+        run: |
+          cat > benchmark-report.md << EOF
+          # 📊 Build Performance Benchmark
+          
+          | Metric | Value |
+          |--------|-------|
+          | Clean Build | ${{ env.BUILD_TIME }}s |
+          | Incremental Build | ${{ env.INCREMENTAL_TIME }}s |
+          | Commit | ${{ github.sha }} |
+          | Date | $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC) |
+          
+          ## Details
+          
+          - **Clean Build**: Full clean build from scratch
+          - **Incremental Build**: Build after small file change
+          
+          ## Thresholds
+          
+          - Clean Build should be < 300s (5 minutes)
+          - Incremental Build should be < 60s (1 minute)
+          
+          ${{ env.BUILD_TIME > 300 && '⚠️ Clean build exceeds threshold!' || '✅ Clean build within threshold' }}
+          ${{ env.INCREMENTAL_TIME > 60 && '⚠️ Incremental build exceeds threshold!' || '✅ Incremental build within threshold' }}
+          EOF
+          
+          cat benchmark-report.md
+
+      # 上传报告
+      - name: Upload Benchmark Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report-${{ github.run_id }}
+          path: benchmark-report.md
+          retention-days: 30
+
+      # PR 评论
+      - name: Comment PR with Benchmark
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const buildTime = ${{ env.BUILD_TIME }};
+            const incrementalTime = ${{ env.INCREMENTAL_TIME }};
+            
+            const buildStatus = buildTime > 300 ? '⚠️' : '✅';
+            const incrementalStatus = incrementalTime > 60 ? '⚠️' : '✅';
+            
+            const body = `## 📊 Build Performance Benchmark\n\n| Metric | Value | Status |\n|--------|-------|--------|\n| Clean Build | ${buildTime}s | ${buildStatus} |\n| Incremental Build | ${incrementalTime}s | ${incrementalStatus} |\n\n*Build benchmark for commit ${{ github.sha }}*`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

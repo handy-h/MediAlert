@@ -1,0 +1,77 @@
+# PR 自动标签配置
+# 用于 actions/labeler@v5
+
+# 文档变更
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'
+          - 'README.md'
+          - 'CONTRIBUTING.md'
+          - 'LICENSE'
+
+# 依赖更新
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'gradle/libs.versions.toml'
+          - 'build.gradle.kts'
+          - 'app/build.gradle.kts'
+          - 'gradle/wrapper/**'
+          - '.github/dependabot.yml'
+
+# CI/CD 变更
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/dependabot.yml'
+          - '.github/labeler.yml'
+
+# 测试相关
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/src/test/**'
+          - '**/src/androidTest/**'
+          - '**/*Test.kt'
+          - '**/*Test.java'
+
+# UI 相关
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/ui/**'
+          - '**/*Screen*.kt'
+          - '**/*Component*.kt'
+          - '**/*Theme*.kt'
+          - '**/*.xml'
+
+# 数据库相关
+database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/data/**'
+          - '**/dao/**'
+          - '**/entity/**'
+          - '**/database/**'
+          - '**/repository/**'
+
+# 核心功能
+ core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/alarm/**'
+          - '**/calendar/**'
+          - '**/reminder/**'
+          - '**/viewmodel/**'
+
+# 配置文件
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'gradle.properties'
+          - 'settings.gradle.kts'
+          - 'local.properties'
+          - '.gitignore'
