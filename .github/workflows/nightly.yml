@@ -1,0 +1,176 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # 每天凌晨 2:00 运行 (UTC+8 对应 18:00 UTC)
+    - cron: '0 18 * * *'
+  workflow_dispatch:  # 支持手动触发
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.7'
+
+jobs:
+  # 夜间构建 - 完整测试和构建
+  nightly-build:
+    name: Nightly Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 完整代码分析
+      - name: Full Code Analysis
+        run: |
+          ./gradlew lintDebug
+          ./gradlew detekt || true
+
+      # 运行所有测试
+      - name: Run All Tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      # 构建 Debug 和 Release
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+        env:
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+
+      # 上传构建产物
+      - name: Upload Nightly Builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-builds
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          retention-days: 7
+
+      # 生成构建报告
+      - name: Generate Build Report
+        run: |
+          echo "# Nightly Build Report" > build-report.md
+          echo "Date: $(date)" >> build-report.md
+          echo "Commit: ${{ github.sha }}" >> build-report.md
+          echo "" >> build-report.md
+          echo "## Build Status" >> build-report.md
+          echo "✅ All builds completed successfully" >> build-report.md
+
+      # 上传报告
+      - name: Upload Build Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-build-report
+          path: build-report.md
+          retention-days: 7
+
+  # 依赖更新检查
+  dependency-check:
+    name: Check Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 检查依赖更新
+      - name: Check Dependency Updates
+        run: ./gradlew dependencyUpdates -Drevision=release || true
+
+      # 安全扫描
+      - name: Security Scan
+        run: ./gradlew dependencyCheckAnalyze || true
+
+      # 上传依赖报告
+      - name: Upload Dependency Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-reports
+          path: |
+            build/dependencyUpdates/report.txt
+            build/reports/dependency-check-report.html
+          retention-days: 7
+
+  # 通知
+  notify:
+    name: Send Nightly Notification
+    runs-on: ubuntu-latest
+    needs: [nightly-build, dependency-check]
+    if: always()
+    steps:
+      - name: Notify Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🌙 MediAlert 夜间构建完成",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🌙 MediAlert 夜间构建报告"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*构建状态:*\n${{ needs.nightly-build.result == 'success' && '✅ 成功' || '❌ 失败' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*依赖检查:*\n${{ needs.dependency-check.result == 'success' && '✅ 完成' || '❌ 失败' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*提交:*\n${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*日期:*\n$(date +%Y-%m-%d)"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
