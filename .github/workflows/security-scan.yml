@@ -1,5 +1,4 @@
-# 新增: 安全扫描工作流
-name: Security Scan
+# 新增: 安全扫描工作�?name: Security Scan
 
 on:
   push:
@@ -41,7 +40,7 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
       - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew
+        run: chmod +x gradlew || true
 
       # OWASP Dependency Check
       - name: Run OWASP Dependency Check
@@ -58,7 +57,7 @@ jobs:
             build/reports/dependency-check-report.xml
           retention-days: 30
 
-      # 上传 SARIF 到 GitHub Security
+      # 上传 SARIF �?GitHub Security
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('build/reports/dependency-check-report.sarif') != ''
@@ -100,7 +99,7 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
       - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew
+        run: chmod +x gradlew || true
 
       - name: Build Project
         run: ./gradlew assembleDebug

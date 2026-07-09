@@ -1,5 +1,4 @@
-# 新增: 基准测试工作流
-name: Benchmark
+# 新增: 基准测试工作�?name: Benchmark
 
 on:
   push:
@@ -40,10 +39,9 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew
+        run: chmod +x gradlew || true
 
-      # 清理并测量构建时间
-      - name: Clean Build Benchmark
+      # 清理并测量构建时�?      - name: Clean Build Benchmark
         run: |
           echo "Running clean build benchmark..."
           ./gradlew clean
@@ -59,8 +57,7 @@ jobs:
       # 增量构建基准
       - name: Incremental Build Benchmark
         run: |
-          # 修改一个文件触发增量构建
-          echo "// Incremental build test" >> app/src/main/java/com/handy/medialert/MainActivity.kt
+          # 修改一个文件触发增量构�?          echo "// Incremental build test" >> app/src/main/java/com/handy/medialert/MainActivity.kt
           
           START_TIME=$(date +%s)
           ./gradlew assembleDebug
@@ -96,8 +93,8 @@ jobs:
           - Clean Build should be < 300s (5 minutes)
           - Incremental Build should be < 60s (1 minute)
           
-          ${{ env.BUILD_TIME > 300 && '⚠️ Clean build exceeds threshold!' || '✅ Clean build within threshold' }}
-          ${{ env.INCREMENTAL_TIME > 60 && '⚠️ Incremental build exceeds threshold!' || '✅ Incremental build within threshold' }}
+          ${{ env.BUILD_TIME > 300 && '⚠️ Clean build exceeds threshold!' || '�?Clean build within threshold' }}
+          ${{ env.INCREMENTAL_TIME > 60 && '⚠️ Incremental build exceeds threshold!' || '�?Incremental build within threshold' }}
           EOF
           
           cat benchmark-report.md
@@ -119,8 +116,8 @@ jobs:
             const buildTime = ${{ env.BUILD_TIME }};
             const incrementalTime = ${{ env.INCREMENTAL_TIME }};
             
-            const buildStatus = buildTime > 300 ? '⚠️' : '✅';
-            const incrementalStatus = incrementalTime > 60 ? '⚠️' : '✅';
+            const buildStatus = buildTime > 300 ? '⚠️' : '�?;
+            const incrementalStatus = incrementalTime > 60 ? '⚠️' : '�?;
             
             const body = `## 📊 Build Performance Benchmark\n\n| Metric | Value | Status |\n|--------|-------|--------|\n| Clean Build | ${buildTime}s | ${buildStatus} |\n| Incremental Build | ${incrementalTime}s | ${incrementalStatus} |\n\n*Build benchmark for commit ${{ github.sha }}*`;
             
