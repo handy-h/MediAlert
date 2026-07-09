@@ -2,18 +2,31 @@ name: PR Check
 
 on:
   pull_request:
-    branches: [ main, develop ]
-    types: [ opened, synchronize, reopened ]
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+# 并发控制：同一 PR 只保留最新检查
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 env:
   JAVA_VERSION: '17'
-  GRADLE_VERSION: '8.7'
+  GRADLE_VERSION: '9.5.0'
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=true
+    -Dorg.gradle.caching=true
+    -Dorg.gradle.configureondemand=true
+    -Dorg.gradle.parallel=true
+    -Dorg.gradle.jvmargs=-Xmx4g
+    -Dfile.encoding=UTF-8
 
 jobs:
   # 快速检查 - 在 PR 创建时立即执行
   pr-quick-check:
     name: PR Quick Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -25,41 +38,45 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: true
 
-      - name: Setup Gradlew
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "gradlew not found, creating wrapper script..."
-            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
-          fi
-          chmod +x gradlew
+      - name: Grant Gradlew Execute Permission
+        run: chmod +x gradlew
 
       # 快速编译检查
       - name: Compile Check
-        run: ./gradlew compileDebugKotlin compileDebugJavaWithJavac
+        run: ./gradlew compileDebugKotlin compileDebugJavaWithJavac --continue
 
       # 快速 Lint 检查
       - name: Quick Lint Check
-        run: ./gradlew lintDebug || true
+        run: ./gradlew lintDebug --continue || true
 
       # 检查代码格式 (ktlint)
       - name: Check Code Format
-        run: ./gradlew ktlintCheck || true
+        run: ./gradlew ktlintCheck --continue || true
+
+      # 快速 Detekt 检查
+      - name: Quick Detekt Check
+        run: ./gradlew detekt --continue || true
 
   # PR 详细检查
   pr-detailed-check:
     name: PR Detailed Check
     runs-on: ubuntu-latest
     needs: pr-quick-check
+    timeout-minutes: 30
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 需要完整历史进行变更分析
+          fetch-depth: 0
 
       - name: Setup JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -68,18 +85,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
+          cache-read-only: true
 
-      - name: Setup Gradlew
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "gradlew not found, creating wrapper script..."
-            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
-          fi
-          chmod +x gradlew
+      - name: Grant Gradlew Execute Permission
+        run: chmod +x gradlew
 
       # 获取变更文件列表
       - name: Get Changed Files
@@ -98,6 +114,8 @@ jobs:
         run: |
           echo "Changed files:"
           echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          echo ""
+          echo "Changed file count: ${{ steps.changed-files.outputs.all_changed_files_count }}"
 
       # 运行单元测试
       - name: Run Unit Tests
@@ -121,9 +139,10 @@ jobs:
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: pr-debug-apk
+          name: pr-debug-apk-${{ github.event.pull_request.number }}-${{ github.run_id }}
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 3
+          if-no-files-found: error
 
       # PR 评论 - 测试结果
       - name: Comment PR with Test Results
@@ -135,47 +154,93 @@ jobs:
             const path = 'app/build/test-results/testDebugUnitTest';
             
             let testResults = '';
+            let totalTests = 0;
+            let totalFailures = 0;
+            let totalErrors = 0;
+            let totalSkipped = 0;
+            
             try {
               const files = fs.readdirSync(path);
               for (const file of files) {
                 if (file.endsWith('.xml')) {
                   const content = fs.readFileSync(`${path}/${file}`, 'utf8');
-                  // 简单的 XML 解析
+                  // 解析 XML
                   const testsMatch = content.match(/tests="(\d+)"/);
                   const failuresMatch = content.match(/failures="(\d+)"/);
                   const errorsMatch = content.match(/errors="(\d+)"/);
+                  const skippedMatch = content.match(/skipped="(\d+)"/);
                   
-                  const tests = testsMatch ? testsMatch[1] : '0';
-                  const failures = failuresMatch ? failuresMatch[1] : '0';
-                  const errors = errorsMatch ? errorsMatch[1] : '0';
+                  const tests = testsMatch ? parseInt(testsMatch[1]) : 0;
+                  const failures = failuresMatch ? parseInt(failuresMatch[1]) : 0;
+                  const errors = errorsMatch ? parseInt(errorsMatch[1]) : 0;
+                  const skipped = skippedMatch ? parseInt(skippedMatch[1]) : 0;
                   
-                  testResults += `📊 **测试结果**: ${tests} 测试, ${failures} 失败, ${errors} 错误\n`;
+                  totalTests += tests;
+                  totalFailures += failures;
+                  totalErrors += errors;
+                  totalSkipped += skipped;
                 }
               }
+              
+              const successRate = totalTests > 0 ? ((totalTests - totalFailures - totalErrors) / totalTests * 100).toFixed(1) : 0;
+              
+              testResults = `📊 **测试结果**: ${totalTests} 测试, ${totalFailures} 失败, ${totalErrors} 错误, ${totalSkipped} 跳过\n`;
+              testResults += `✅ **成功率**: ${successRate}%\n`;
+              
+              if (totalFailures > 0 || totalErrors > 0) {
+                testResults += `\n⚠️ **存在失败的测试，请检查并修复。**\n`;
+              }
             } catch (e) {
-              testResults = '⚠️ 无法读取测试结果';
+              testResults = '⚠️ 无法读取测试结果\n';
+              console.error(e);
             }
             
-            const body = `## 🤖 PR 自动化检查结果\n\n${testResults}\n`;
+            const buildStatus = '${{ job.status }}' === 'success' ? '✅' : '❌';
             
-            github.rest.issues.createComment({
+            const body = `## 🤖 PR 自动化检查结果\n\n${testResults}\n📦 **构建状态**: ${buildStatus} Debug APK 构建\n\n*由 GitHub Actions 自动生成*`;
+            
+            // 查找是否已有评论
+            const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
+              repo: context.repo.repo
             });
+            
+            const botComment = comments.data.find(comment => 
+              comment.body.includes('🤖 PR 自动化检查结果')
+            );
+            
+            if (botComment) {
+              // 更新现有评论
+              await github.rest.issues.updateComment({
+                comment_id: botComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } else {
+              // 创建新评论
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
 
   # PR 标签管理
   pr-labeler:
     name: PR Labeler
     runs-on: ubuntu-latest
     if: github.event.action == 'opened'
+    timeout-minutes: 5
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Label PR
+      - name: Label PR (if labeler config exists)
         uses: actions/labeler@v5
+        if: hashFiles('.github/labeler.yml') != ''
         with:
           configuration-path: .github/labeler.yml
         continue-on-error: true
@@ -198,15 +263,24 @@ jobs:
               labels.push('release');
             } else if (branch.startsWith('docs/')) {
               labels.push('documentation');
+            } else if (branch.startsWith('refactor/')) {
+              labels.push('refactor');
+            } else if (branch.startsWith('test/')) {
+              labels.push('tests');
+            } else if (branch.startsWith('chore/')) {
+              labels.push('chore');
             }
             
             if (labels.length > 0) {
-              github.rest.issues.addLabels({
+              await github.rest.issues.addLabels({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 labels: labels
               });
+              console.log(`Added labels: ${labels.join(', ')}`);
+            } else {
+              console.log('No matching labels for branch:', branch);
             }
 
   # 检查 PR 描述
@@ -214,6 +288,7 @@ jobs:
     name: Check PR Description
     runs-on: ubuntu-latest
     if: github.event.action == 'opened'
+    timeout-minutes: 5
     steps:
       - name: Check PR Description
         uses: actions/github-script@v7
@@ -225,8 +300,9 @@ jobs:
             // 检查 PR 描述是否包含必要信息
             const checks = {
               hasDescription: body.length > 50,
-              hasIssue: body.includes('#') || body.includes('issue'),
-              hasChanges: body.includes('变更') || body.includes('change') || body.includes('修改')
+              hasIssue: body.includes('#') || body.includes('issue') || body.includes('Issue') || body.includes(' closes ') || body.includes(' fixes '),
+              hasChanges: body.includes('变更') || body.includes('change') || body.includes('修改') || body.includes('Changes') || body.includes('改动'),
+              hasType: body.includes('类型') || body.includes('Type') || body.includes('类型') || body.includes('feature') || body.includes('bugfix') || body.includes('hotfix')
             };
             
             let message = '## 📋 PR 描述检查\n\n';
@@ -239,15 +315,144 @@ jobs:
               allPassed = false;
             }
             
+            if (checks.hasIssue) {
+              message += '✅ 关联了相关 Issue\n';
+            } else {
+              message += '💡 建议关联相关 Issue（使用 `#123` 或 `closes #123`）\n';
+            }
+            
+            if (checks.hasChanges) {
+              message += '✅ 说明了变更内容\n';
+            } else {
+              message += '💡 建议说明具体的变更内容\n';
+              allPassed = false;
+            }
+            
             if (allPassed) {
               message += '\n🎉 PR 描述检查通过！';
             } else {
               message += '\n💡 提示: 请补充 PR 描述，说明变更内容和原因。';
             }
             
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: message
             });
+
+  # PR 大小检查
+  pr-size-check:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR Size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            let totalAdditions = 0;
+            let totalDeletions = 0;
+            let totalChanges = 0;
+            
+            for (const file of files) {
+              totalAdditions += file.additions;
+              totalDeletions += file.deletions;
+              totalChanges += file.changes;
+            }
+            
+            let sizeLabel = '';
+            let message = '';
+            
+            if (totalChanges <= 50) {
+              sizeLabel = 'size: XS';
+              message = '✅ PR 大小合适 (XS)';
+            } else if (totalChanges <= 100) {
+              sizeLabel = 'size: S';
+              message = '✅ PR 大小合适 (S)';
+            } else if (totalChanges <= 300) {
+              sizeLabel = 'size: M';
+              message = '⚠️ PR 大小中等 (M)，建议考虑拆分';
+            } else if (totalChanges <= 500) {
+              sizeLabel = 'size: L';
+              message = '⚠️ PR 较大 (L)，强烈建议拆分为多个小 PR';
+            } else {
+              sizeLabel = 'size: XL';
+              message = '❌ PR 过大 (XL)，必须拆分以提高代码审查质量';
+            }
+            
+            // 添加大小标签
+            try {
+              await github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: [sizeLabel]
+              });
+            } catch (e) {
+              console.log('Label may already exist');
+            }
+            
+            console.log(`PR Size: ${totalChanges} changes (${totalAdditions} additions, ${totalDeletions} deletions)`);
+            console.log(message);
+
+  # 检查 PR 是否可合并
+  pr-merge-check:
+    name: PR Merge Check
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    timeout-minutes: 5
+    needs: [pr-quick-check, pr-detailed-check]
+    steps:
+      - name: Check Merge Requirements
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const quickCheck = '${{ needs.pr-quick-check.result }}';
+            const detailedCheck = '${{ needs.pr-detailed-check.result }}';
+            
+            let status = 'success';
+            let message = '## ✅ PR 合并检查\n\n';
+            
+            if (quickCheck === 'success') {
+              message += '- ✅ 快速检查通过\n';
+            } else {
+              message += '- ❌ 快速检查失败\n';
+              status = 'failure';
+            }
+            
+            if (detailedCheck === 'success') {
+              message += '- ✅ 详细检查通过\n';
+            } else {
+              message += '- ❌ 详细检查失败\n';
+              status = 'failure';
+            }
+            
+            if (status === 'success') {
+              message += '\n🎉 所有检查通过，可以合并！';
+            } else {
+              message += '\n⚠️ 请修复上述问题后再合并。';
+            }
+            
+            // 设置 commit status
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: status,
+              context: 'PR Merge Check',
+              description: status === 'success' ? 'All checks passed' : 'Some checks failed'
+            });
+        continue-on-error: true
