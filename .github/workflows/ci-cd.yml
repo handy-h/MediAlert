@@ -1,0 +1,472 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ created ]
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.7'
+
+jobs:
+  # ==========================================
+  # 阶段 1: 代码质量检查
+  # ==========================================
+  code-quality:
+    name: Code Quality & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 静态代码分析 - Detekt (Kotlin)
+      - name: Run Detekt Analysis
+        run: ./gradlew detekt || true
+
+      # 静态代码分析 - Android Lint
+      - name: Run Android Lint
+        run: ./gradlew lintDebug
+
+      # 安全扫描 - Dependency Check
+      - name: Run Dependency Vulnerability Scan
+        run: ./gradlew dependencyCheckAnalyze || true
+
+      # 上传报告
+      - name: Upload Lint Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-reports
+          path: |
+            app/build/reports/lint-results-debug.html
+            build/reports/detekt/detekt.html
+            build/reports/dependency-check-report.html
+          retention-days: 7
+
+  # ==========================================
+  # 阶段 2: 单元测试
+  # ==========================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 运行单元测试
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      # 生成测试报告
+      - name: Generate Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Test Results
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      # 上传测试报告
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+          retention-days: 7
+
+      # 代码覆盖率 - JaCoCo
+      - name: Generate Coverage Report
+        run: ./gradlew jacocoTestReport || true
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ==========================================
+  # 阶段 3: 集成测试 (Android Instrumented Tests)
+  # ==========================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    strategy:
+      matrix:
+        api-level: [29, 33, 34]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 启用 KVM 加速
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # 运行 Android 模拟器测试
+      - name: Run Android Instrumented Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
+          disable-animations: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+
+      # 上传测试报告
+      - name: Upload Instrumented Test Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: instrumented-test-reports-api-${{ matrix.api-level }}
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          retention-days: 7
+
+  # ==========================================
+  # 阶段 4: 构建 Debug APK
+  # ==========================================
+  build-debug:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 构建 Debug APK
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      # 签名 Debug APK (使用 GitHub Secrets)
+      - name: Sign Debug APK
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/debug
+          signingKeyBase64: ${{ secrets.DEBUG_SIGNING_KEY }}
+          alias: ${{ secrets.DEBUG_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.DEBUG_KEY_PASSWORD }}
+          keyPassword: ${{ secrets.DEBUG_KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      # 上传 Debug APK
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+  # ==========================================
+  # 阶段 5: 构建 Release APK/AAB (仅 main 分支和 release)
+  # ==========================================
+  build-release:
+    name: Build Release APK/AAB
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests, integration-tests]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 解码 Release 签名密钥
+      - name: Decode Release Signing Key
+        run: |
+          echo "${{ secrets.RELEASE_SIGNING_KEY }}" | base64 -d > app/release.jks
+
+      # 构建 Release APK
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+        env:
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+
+      # 构建 Release AAB (Android App Bundle)
+      - name: Build Release AAB
+        run: ./gradlew bundleRelease
+        env:
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+
+      # 验证 APK 签名
+      - name: Verify APK Signature
+        run: |
+          jarsigner -verify -verbose -certs app/build/outputs/apk/release/app-release.apk
+
+      # 上传 Release APK
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+          retention-days: 14
+
+      # 上传 Release AAB
+      - name: Upload Release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: |
+            app/build/outputs/bundle/release/*.aab
+          retention-days: 14
+
+      # 清理签名密钥
+      - name: Clean Signing Key
+        if: always()
+        run: rm -f app/release.jks
+
+  # ==========================================
+  # 阶段 6: 发布到 GitHub Releases
+  # ==========================================
+  deploy-github:
+    name: Deploy to GitHub Releases
+    runs-on: ubuntu-latest
+    needs: build-release
+    if: github.event_name == 'release'
+    steps:
+      - name: Download Release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+          path: ./artifacts/apk
+
+      - name: Download Release AAB
+        uses: actions/download-artifact@v4
+        with:
+          name: release-aab
+          path: ./artifacts/aab
+
+      # 计算 APK 哈希值
+      - name: Calculate Checksums
+        run: |
+          cd ./artifacts
+          sha256sum apk/*.apk > checksums.txt
+          sha256sum aab/*.aab >> checksums.txt
+          cat checksums.txt
+
+      # 上传 Release 资源
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/apk/*.apk
+            ./artifacts/aab/*.aab
+            ./artifacts/checksums.txt
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==========================================
+  # 阶段 7: 通知 (Slack/Email)
+  # ==========================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [build-debug, build-release]
+    if: always()
+    steps:
+      - name: Notify Slack - Success
+        if: needs.build-release.result == 'success'
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ MediAlert 构建成功！",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🎉 MediAlert CI/CD 流水线成功"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*分支:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*提交:*\n${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*触发者:*\n${{ github.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*状态:*\n✅ 成功"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack - Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ MediAlert 构建失败！",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚨 MediAlert CI/CD 流水线失败"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*分支:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*提交:*\n${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*触发者:*\n${{ github.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*状态:*\n❌ 失败"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*查看详情:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|点击这里>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # 发送邮件通知 (可选)
+      - name: Send Email Notification
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "❌ MediAlert 构建失败 - ${{ github.ref_name }}"
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USERNAME }}
+          body: |
+            MediAlert 项目构建失败！
+            
+            分支: ${{ github.ref_name }}
+            提交: ${{ github.sha }}
+            触发者: ${{ github.actor }}
+            
+            查看详情: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
