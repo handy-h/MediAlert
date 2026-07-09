@@ -37,8 +37,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 静态代码分析 - Detekt (Kotlin)
       - name: Run Detekt Analysis
@@ -87,8 +92,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 运行单元测试
       - name: Run Unit Tests
@@ -153,8 +163,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 启用 KVM 加速
       - name: Enable KVM
@@ -209,8 +224,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 构建 Debug APK
       - name: Build Debug APK
@@ -261,8 +281,13 @@ jobs:
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradlew
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found, creating wrapper script..."
+            gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+          fi
+          chmod +x gradlew
 
       # 解码 Release 签名密钥
       - name: Decode Release Signing Key
