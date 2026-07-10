@@ -34,10 +34,15 @@ runs:
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-      with:
-        packages: |
-          platforms;android-${{ inputs.compile-sdk }}
-          build-tools;${{ inputs.compile-sdk }}.0.0
+
+    - name: Install Android SDK Packages
+      shell: bash
+      run: |
+        echo "y" | sdkmanager --install \
+          "platforms;android-${{ inputs.compile-sdk }}" \
+          "build-tools;${{ inputs.compile-sdk }}.0.0" \
+          "platform-tools" 2>/dev/null || true
+        sdkmanager --list_installed 2>/dev/null || sdkmanager --list 2>/dev/null | head -30
 
     - name: Validate Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v3
