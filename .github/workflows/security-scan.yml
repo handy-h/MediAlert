@@ -1,4 +1,4 @@
-# 新增: 安全扫描工作�?name: Security Scan
+#
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main, develop]
   schedule:
-    # 每周一凌晨 3:00 运行 (UTC+8 对应 19:00 UTC 周日)
+    #
     - cron: '0 19 * * 0'
   workflow_dispatch:
 
@@ -15,7 +15,7 @@ env:
   GRADLE_VERSION: '9.5.0'
 
 jobs:
-  # 依赖安全扫描
+  #
   dependency-security:
     name: Dependency Security Scan
     runs-on: ubuntu-latest
@@ -46,7 +46,7 @@ jobs:
       - name: Run OWASP Dependency Check
         run: ./gradlew dependencyCheckAnalyze --continue || true
 
-      # 上传报告
+      #
       - name: Upload Security Report
         uses: actions/upload-artifact@v4
         if: always()
@@ -57,14 +57,14 @@ jobs:
             build/reports/dependency-check-report.xml
           retention-days: 30
 
-      # 上传 SARIF �?GitHub Security
+      #
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('build/reports/dependency-check-report.sarif') != ''
         with:
           sarif_file: build/reports/dependency-check-report.sarif
 
-  # 代码安全扫描 (CodeQL)
+  #
   codeql-analysis:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
@@ -109,7 +109,7 @@ jobs:
         with:
           category: "/language:java-kotlin"
 
-  # 密钥扫描
+  #
   secret-scan:
     name: Secret Scanning
     runs-on: ubuntu-latest

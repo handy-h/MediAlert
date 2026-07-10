@@ -8,7 +8,7 @@ on:
   release:
     types: [published]
 
-# 并发控制：同一分支/PR 只保留最新运行，取消旧的
+#
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,7 +26,7 @@ env:
 
 jobs:
   # ==========================================
-  # 阶段 1: 代码质量检�?  # ==========================================
+  #
   code-quality:
     name: Code Quality & Security Scan
     runs-on: ubuntu-latest
@@ -56,22 +56,22 @@ jobs:
       - name: Grant Gradlew Execute Permission
         run: chmod +x gradlew || true
 
-      # 静态代码分�?- Detekt (Kotlin)
+      #
       - name: Run Detekt Analysis
         run: ./gradlew detekt --continue || true
 
-      # 静态代码分�?- Android Lint
+      #
       - name: Run Android Lint
         run: ./gradlew lintDebug --continue || true
 
-      # 安全扫描 - Dependency Check
+      #
       - name: Run Dependency Vulnerability Scan
         run: ./gradlew dependencyCheckAnalyze --continue || true
 
-      # 代码格式检�?      - name: Check Code Format (ktlint)
+      - name: Step
         run: ./gradlew ktlintCheck --continue || true
 
-      # 上传报告
+      #
       - name: Upload Lint Reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -87,7 +87,7 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      # 上传 Detekt SARIF �?GitHub Security
+      #
       - name: Upload Detekt SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('build/reports/detekt/detekt.sarif') != ''
@@ -95,7 +95,7 @@ jobs:
           sarif_file: build/reports/detekt/detekt.sarif
 
   # ==========================================
-  # 阶段 2: 单元测试
+  #
   # ==========================================
   unit-tests:
     name: Unit Tests
@@ -125,11 +125,11 @@ jobs:
       - name: Grant Gradlew Execute Permission
         run: chmod +x gradlew || true
 
-      # 运行单元测试
+      #
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      # 生成测试报告
+      #
       - name: Generate Test Report
         uses: dorny/test-reporter@v1
         if: always()
@@ -139,7 +139,7 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
-      # 上传测试报告
+      #
       - name: Upload Test Reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -151,7 +151,7 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      # 代码覆盖�?- JaCoCo
+      #
       - name: Generate Coverage Report
         run: ./gradlew jacocoTestReport --continue || true
 
@@ -166,7 +166,7 @@ jobs:
           verbose: true
 
   # ==========================================
-  # 阶段 3: 集成测试 (Android Instrumented Tests)
+  #
   # ==========================================
   integration-tests:
     name: Integration Tests (API ${{ matrix.api-level }})
@@ -200,13 +200,13 @@ jobs:
       - name: Grant Gradlew Execute Permission
         run: chmod +x gradlew || true
 
-      # 启用 KVM 加�?      - name: Enable KVM
+      - name: Step
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # 运行 Android 模拟器测�?      - name: Run Android Instrumented Tests
+      - name: Step
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -216,10 +216,10 @@ jobs:
           script: ./gradlew connectedDebugAndroidTest --stacktrace
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          # 增加超时以应对慢启动
+          #
           ndk: 23.1.7779620
 
-      # 上传测试报告
+      #
       - name: Upload Instrumented Test Reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -232,7 +232,7 @@ jobs:
           if-no-files-found: warn
 
   # ==========================================
-  # 阶段 4: 构建 Debug APK
+  #
   # ==========================================
   build-debug:
     name: Build Debug APK
@@ -262,11 +262,11 @@ jobs:
       - name: Grant Gradlew Execute Permission
         run: chmod +x gradlew || true
 
-      # 构建 Debug APK
+      #
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      # 签名 Debug APK (使用 GitHub Secrets)
+      #
       - name: Sign Debug APK
         id: sign-debug
         uses: r0adkll/sign-android-release@v1
@@ -280,7 +280,7 @@ jobs:
           BUILD_TOOLS_VERSION: "34.0.0"
         continue-on-error: true
 
-      # 上传 Debug APK
+      #
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -290,7 +290,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      # 输出 APK 信息
+      #
       - name: Output APK Info
         run: |
           echo "Debug APK built successfully"
@@ -298,7 +298,7 @@ jobs:
           aapt dump badging app/build/outputs/apk/debug/app-debug.apk 2>/dev/null | grep package || true
 
   # ==========================================
-  # 阶段 5: 构建 Release APK/AAB (�?main 分支�?release)
+  #
   # ==========================================
   build-release:
     name: Build Release APK/AAB
@@ -330,13 +330,13 @@ jobs:
       - name: Grant Gradlew Execute Permission
         run: chmod +x gradlew || true
 
-      # 解码 Release 签名密钥
+      #
       - name: Decode Release Signing Key
         run: |
           echo "${{ secrets.RELEASE_SIGNING_KEY }}" | base64 -d > app/release.jks
           ls -lh app/release.jks
 
-      # 构建 Release APK
+      #
       - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
@@ -344,7 +344,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      # 构建 Release AAB (Android App Bundle)
+      #
       - name: Build Release AAB
         run: ./gradlew bundleRelease
         env:
@@ -352,7 +352,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      # 验证 APK 签名
+      #
       - name: Verify APK Signature
         run: |
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
@@ -362,7 +362,7 @@ jobs:
             echo "Release APK not found"
           fi
 
-      # 验证 AAB 签名
+      #
       - name: Verify AAB Signature
         run: |
           if [ -f "app/build/outputs/bundle/release/app-release.aab" ]; then
@@ -372,7 +372,7 @@ jobs:
             echo "Release AAB not found"
           fi
 
-      # 计算哈希�?      - name: Calculate Checksums
+      - name: Step
         run: |
           cd app/build/outputs
           echo "# MediAlert Release Checksums" > checksums.txt
@@ -389,7 +389,7 @@ jobs:
           fi
           cat checksums.txt
 
-      # 上传 Release APK
+      #
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
@@ -399,7 +399,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      # 上传 Release AAB
+      #
       - name: Upload Release AAB
         uses: actions/upload-artifact@v4
         with:
@@ -409,7 +409,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      # 上传 Checksums
+      #
       - name: Upload Checksums
         uses: actions/upload-artifact@v4
         with:
@@ -417,14 +417,14 @@ jobs:
           path: app/build/outputs/checksums.txt
           retention-days: 14
 
-      # 清理签名密钥
+      #
       - name: Clean Signing Key
         if: always()
         run: |
           rm -f app/release.jks
           echo "Signing key cleaned up"
 
-      # 输出构建信息
+      #
       - name: Output Build Info
         run: |
           echo "Release build completed"
@@ -432,7 +432,7 @@ jobs:
           ls -lh app/build/outputs/bundle/release/*.aab || true
 
   # ==========================================
-  # 阶段 6: 发布�?GitHub Releases
+  #
   # ==========================================
   deploy-github:
     name: Deploy to GitHub Releases
@@ -459,7 +459,7 @@ jobs:
           name: release-checksums-${{ github.run_id }}
           path: ./artifacts
 
-      # 上传 Release 资源
+      #
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
@@ -471,7 +471,7 @@ jobs:
           fail_on_unmatched_files: false
 
   # ==========================================
-  # 阶段 7: 通知 (Slack/Email)
+  #
   # ==========================================
   notify:
     name: Send Notifications
@@ -499,13 +499,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "�?MediAlert 构建成功�?,
+              "text": "鉁?MediAlert 鏋勫缓鎴愬姛锛?,
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "🎉 MediAlert CI/CD 流水线成�?
+                    "text": "馃帀 MediAlert CI/CD 娴佹按绾挎垚鍔?
                   }
                 },
                 {
@@ -513,19 +513,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*分支:*\n${{ github.ref_name }}"
+                      "text": "*鍒嗘敮:*\n${{ github.ref_name }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*提交:*\n${{ github.sha }}"
+                      "text": "*鎻愪氦:*\n${{ github.sha }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*触发�?*\n${{ github.actor }}"
+                      "text": "*瑙﹀彂鑰?*\n${{ github.actor }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*状�?*\n�?成功"
+                      "text": "*鐘舵€?*\n鉁?鎴愬姛"
                     }
                   ]
                 },
@@ -536,7 +536,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "查看详情"
+                        "text": "鏌ョ湅璇︽儏"
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
@@ -553,13 +553,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "�?MediAlert 构建失败�?,
+              "text": "鉂?MediAlert 鏋勫缓澶辫触锛?,
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "🚨 MediAlert CI/CD 流水线失�?
+                    "text": "馃毃 MediAlert CI/CD 娴佹按绾垮け璐?
                   }
                 },
                 {
@@ -567,19 +567,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*分支:*\n${{ github.ref_name }}"
+                      "text": "*鍒嗘敮:*\n${{ github.ref_name }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*提交:*\n${{ github.sha }}"
+                      "text": "*鎻愪氦:*\n${{ github.sha }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*触发�?*\n${{ github.actor }}"
+                      "text": "*瑙﹀彂鑰?*\n${{ github.actor }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*状�?*\n�?失败"
+                      "text": "*鐘舵€?*\n鉂?澶辫触"
                     }
                   ]
                 },
@@ -587,7 +587,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*查看详情:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|点击这里>"
+                    "text": "*鏌ョ湅璇︽儏:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|鐐瑰嚮杩欓噷>"
                   }
                 }
               ]
@@ -595,7 +595,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # 发送邮件通知 (可�?
+      #
       - name: Send Email Notification
         if: steps.status.outputs.status == 'failure' && env.EMAIL_USERNAME != ''
         uses: dawidd6/action-send-mail@v3
@@ -604,17 +604,17 @@ jobs:
           server_port: 587
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "�?MediAlert 构建失败 - ${{ github.ref_name }}"
+          subject: "鉂?MediAlert 鏋勫缓澶辫触 - ${{ github.ref_name }}"
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: ${{ secrets.EMAIL_USERNAME }}
           body: |
-            MediAlert 项目构建失败�?            
-            分支: ${{ github.ref_name }}
-            提交: ${{ github.sha }}
-            触发�? ${{ github.actor }}
-            时间: ${{ github.event.head_commit.timestamp }}
+            MediAlert 椤圭洰鏋勫缓澶辫触锛?            
+            鍒嗘敮: ${{ github.ref_name }}
+            鎻愪氦: ${{ github.sha }}
+            瑙﹀彂鑰? ${{ github.actor }}
+            鏃堕棿: ${{ github.event.head_commit.timestamp }}
             
-            查看详情: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            鏌ョ湅璇︽儏: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
         continue-on-error: true

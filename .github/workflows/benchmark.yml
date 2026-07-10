@@ -1,4 +1,4 @@
-# 新增: 基准测试工作�?name: Benchmark
+#
 
 on:
   push:
@@ -13,7 +13,7 @@ env:
   GRADLE_VERSION: '9.5.0'
 
 jobs:
-  # 构建性能基准测试
+  #
   build-benchmark:
     name: Build Performance Benchmark
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
       - name: Grant Gradlew Execute Permission
         run: chmod +x gradlew || true
 
-      # 清理并测量构建时�?      - name: Clean Build Benchmark
+      - name: Step
         run: |
           echo "Running clean build benchmark..."
           ./gradlew clean
@@ -54,10 +54,10 @@ jobs:
           echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_ENV
           echo "Clean build time: ${BUILD_TIME}s"
 
-      # 增量构建基准
+      #
       - name: Incremental Build Benchmark
         run: |
-          # 修改一个文件触发增量构�?          echo "// Incremental build test" >> app/src/main/java/com/handy/medialert/MainActivity.kt
+          #
           
           START_TIME=$(date +%s)
           ./gradlew assembleDebug
@@ -67,14 +67,14 @@ jobs:
           echo "INCREMENTAL_TIME=$INCREMENTAL_TIME" >> $GITHUB_ENV
           echo "Incremental build time: ${INCREMENTAL_TIME}s"
           
-          # 恢复文件
+          #
           git checkout app/src/main/java/com/handy/medialert/MainActivity.kt
 
-      # 生成基准报告
+      #
       - name: Generate Benchmark Report
         run: |
           cat > benchmark-report.md << EOF
-          # 📊 Build Performance Benchmark
+          #
           
           | Metric | Value |
           |--------|-------|
@@ -93,13 +93,13 @@ jobs:
           - Clean Build should be < 300s (5 minutes)
           - Incremental Build should be < 60s (1 minute)
           
-          ${{ env.BUILD_TIME > 300 && '⚠️ Clean build exceeds threshold!' || '�?Clean build within threshold' }}
-          ${{ env.INCREMENTAL_TIME > 60 && '⚠️ Incremental build exceeds threshold!' || '�?Incremental build within threshold' }}
+          ${{ env.BUILD_TIME > 300 && '鈿狅笍 Clean build exceeds threshold!' || '鉁?Clean build within threshold' }}
+          ${{ env.INCREMENTAL_TIME > 60 && '鈿狅笍 Incremental build exceeds threshold!' || '鉁?Incremental build within threshold' }}
           EOF
           
           cat benchmark-report.md
 
-      # 上传报告
+      #
       - name: Upload Benchmark Report
         uses: actions/upload-artifact@v4
         with:
@@ -107,7 +107,7 @@ jobs:
           path: benchmark-report.md
           retention-days: 30
 
-      # PR 评论
+      #
       - name: Comment PR with Benchmark
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -116,10 +116,10 @@ jobs:
             const buildTime = ${{ env.BUILD_TIME }};
             const incrementalTime = ${{ env.INCREMENTAL_TIME }};
             
-            const buildStatus = buildTime > 300 ? '⚠️' : '�?;
-            const incrementalStatus = incrementalTime > 60 ? '⚠️' : '�?;
+            const buildStatus = buildTime > 300 ? '鈿狅笍' : '鉁?;
+            const incrementalStatus = incrementalTime > 60 ? '鈿狅笍' : '鉁?;
             
-            const body = `## 📊 Build Performance Benchmark\n\n| Metric | Value | Status |\n|--------|-------|--------|\n| Clean Build | ${buildTime}s | ${buildStatus} |\n| Incremental Build | ${incrementalTime}s | ${incrementalStatus} |\n\n*Build benchmark for commit ${{ github.sha }}*`;
+            const body = `## 馃搳 Build Performance Benchmark\n\n| Metric | Value | Status |\n|--------|-------|--------|\n| Clean Build | ${buildTime}s | ${buildStatus} |\n| Incremental Build | ${incrementalTime}s | ${incrementalStatus} |\n\n*Build benchmark for commit ${{ github.sha }}*`;
             
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
