@@ -43,7 +43,7 @@ jobs:
 
       - name: Create Update PR
         if: steps.check-updates.outputs.has_updates == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
