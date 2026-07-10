@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Value'
+        description: 'Target environment'
         required: true
         default: 'staging'
         type: choice
@@ -12,22 +12,13 @@ on:
           - staging
           - production
       build_type:
-        description: 'Value'
+        description: 'Build type (debug or release)'
         required: true
         default: 'release'
         type: choice
         options:
           - debug
           - release
-      notify:
-        description: 'Value'
-        required: false
-        default: true
-        type: boolean
-
-#
-  group: manual-deploy-${{ github.event.inputs.environment }}
-  cancel-in-progress: false
 
 env:
   JAVA_VERSION: '17'
@@ -35,228 +26,198 @@ env:
   GRADLE_OPTS: >-
     -Dorg.gradle.daemon=true
     -Dorg.gradle.caching=true
-    -Dorg.gradle.configureondemand=true
-    -Dorg.gradle.parallel=true
     -Dorg.gradle.jvmargs=-Xmx4g
     -Dfile.encoding=UTF-8
 
+concurrency:
+  group: manual-deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
-  # step
   validate:
-    name: Validate Input
+    name: Validate Inputs
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check Environment
+      - name: Validate Environment
         run: |
-          ENV="${{ github.event.inputs.environment }}"
-          REF="${{ github.ref }}"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Build type: ${{ github.event.inputs.build_type }}"
           
-          echo "Environment: $ENV"
-          echo "Ref: $REF"
-          
-          if [ "$ENV" == "production" ] && [ "$REF" != "refs/heads/main" ]; then
-            echo "闂?闂佹眹鍨婚崰宥嗩殽閸ヮ剚鍋濇い鏍ㄥ嚬閺嗘棃鏌涘▎妯规捣闁稿繑蓱缁?main 闂佸憡甯掑Λ娆撳极椤曗偓閺屽牓濡歌椤?
-            echo "閻熸粎澧楅幐鍛婃櫠閻樿绀嗛柛鈩兩戦弳? $REF"
-            exit 1
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+            echo "Production deployment requires manual confirmation."
+            echo "Please ensure all tests pass before proceeding."
           fi
-          
-          echo "闂?闂佺粯绮犻崹浼淬€傞妸锔绘鐎光偓閸愵亝顫嶉梻渚囧亝娣囪櫣鎹?
 
-      - name: Log Deploy Info
-        run: |
-          echo "濡絽鍟悾?闂佸綊娼ч鍛叏閳哄懏鐒鹃柕濞у棭鍞归梺鍛婂嚬閸ㄧ増鎱?
-          echo "闂佺粯绮犻崹浼淬€? ${{ github.event.inputs.environment }}"
-          echo "闂佸搫顑呯€氼剛绱撻幘鍓佸暗閻犲洩灏欓埀? ${{ github.event.inputs.build_type }}"
-          echo "闁荤喐鐟辩粻鎴ｃ亹閸岀偞鍤€? ${{ github.actor }}"
-          echo "闂佸搫鍟悥鐓幬? $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)"
-
-  # step
   build:
-    name: Build
+    name: Build (${{ github.event.inputs.build_type }})
     runs-on: ubuntu-latest
     needs: validate
     timeout-minutes: 30
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: false
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      - name: Step
+      - name: Build Debug APK
         if: github.event.inputs.build_type == 'debug'
         run: ./gradlew assembleDebug
 
-      - name: Build Release
+      - name: Build Release APK
         if: github.event.inputs.build_type == 'release'
-        run: ./gradlew assembleRelease
+        run: |
+          echo "${{ secrets.RELEASE_SIGNING_KEY }}" | base64 -d > app/release.jks
+          ./gradlew assembleRelease
+          rm -f app/release.jks
         env:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      #
-      - name: Sign Release APK
+      - name: Build Release AAB
         if: github.event.inputs.build_type == 'release'
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEY }}
-          alias: ${{ secrets.RELEASE_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.RELEASE_SIGNING_KEY }}" | base64 -d > app/release.jks
+          ./gradlew bundleRelease
+          rm -f app/release.jks
         env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-        continue-on-error: true
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      - name: Step
+      - name: Upload Debug APK
+        if: github.event.inputs.build_type == 'debug'
         uses: actions/upload-artifact@v4
         with:
-          name: manual-build-${{ github.event.inputs.environment }}-${{ github.event.inputs.build_type }}-${{ github.run_id }}
-          path: app/build/outputs/apk/${{ github.event.inputs.build_type }}/*.apk
+          name: manual-deploy-debug-${{ github.run_id }}
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: error
 
-      - name: Step
-        run: |
-          echo "闂?闂佸搫顑呯€氼剛绱撻幘鍨涘亾閻熺増婀伴柛?
-          ls -lh app/build/outputs/apk/${{ github.event.inputs.build_type }}/*.apk || true
+      - name: Upload Release APK
+        if: github.event.inputs.build_type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-deploy-release-apk-${{ github.run_id }}
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 14
+          if-no-files-found: error
 
-  #
+      - name: Upload Release AAB
+        if: github.event.inputs.build_type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-deploy-release-aab-${{ github.run_id }}
+          path: app/build/outputs/bundle/release/*.aab
+          retention-days: 14
+          if-no-files-found: error
+
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: build
     if: github.event.inputs.environment == 'staging'
-    timeout-minutes: 15
+    timeout-minutes: 10
+    environment: staging
     steps:
-      - name: Download Build
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: manual-build-staging-${{ github.event.inputs.build_type }}-${{ github.run_id }}
+          name: manual-deploy-${{ github.event.inputs.build_type == 'release' && 'release-apk' || 'debug' }}-${{ github.run_id }}
           path: ./artifacts
 
-      #
-      - name: Deploy to Firebase App Distribution
-        if: env.FIREBASE_APP_ID != ''
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: staging-testers
-          file: ./artifacts/app-${{ github.event.inputs.build_type }}.apk
-        continue-on-error: true
-        env:
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-
-      #
-      - name: Create Staging Release Draft
-        if: github.event.inputs.build_type == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          prerelease: true
-          name: "Staging Build - ${{ github.run_id }}"
-          body: |
-            #
-            
-            - **闂佺粯绮犻崹浼淬€?*: Staging
-            - **闂佸搫顑呯€氼剛绱撻幘鍓佸暗閻犲洩灏欓埀?*: ${{ github.event.inputs.build_type }}
-            - **闁荤喐鐟辩粻鎴ｃ亹閸岀偞鍤€?*: ${{ github.actor }}
-            - **闂佸搫鍟悥鐓幬?*: ${{ github.event.repository.updated_at }}
-            - **Commit**: ${{ github.sha }}
-          files: ./artifacts/*.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Staging Deploy Info
+      - name: Generate Staging Info
         run: |
-          echo "闂?Staging 闂備緡鍠撻崝搴ｆ媼閼碱兘鍋撻悷鐗堟拱闁?
-          echo "闂佸搫顑呯€氼剛绱撻幘鍓佸暗閻犲洩灏欓埀? ${{ github.event.inputs.build_type }}"
-          echo "闂佺粯绮犻崹浼淬€? ${{ github.event.inputs.environment }}"
-          echo "婵炲瓨绫傞崨顓涙寘:"
-          ls -lh ./artifacts/*.apk || true
+          cat > staging-info.md << EOF
+          # Staging Deployment Info
+          
+          - **Build Type**: ${{ github.event.inputs.build_type }}
+          - **Deployed at**: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)
+          - **Commit**: ${{ github.sha }}
+          - **Triggered by**: ${{ github.actor }}
+          
+          ## Artifacts
+          $(ls -lh ./artifacts/*.apk 2>/dev/null || echo "No APK found")
+          $(ls -lh ./artifacts/*.aab 2>/dev/null || echo "No AAB found")
+          EOF
+          cat staging-info.md
 
-  #
+      - name: Upload Deployment Info
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-deployment-info-${{ github.run_id }}
+          path: staging-info.md
+          retention-days: 7
+
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: build
     if: github.event.inputs.environment == 'production'
-    environment: production
     timeout-minutes: 15
+    environment: production
     steps:
-      - name: Download Build
+      - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: manual-build-production-${{ github.event.inputs.build_type }}-${{ github.run_id }}
+          name: manual-deploy-release-apk-${{ github.run_id }}
           path: ./artifacts
 
-      #
-      - name: Create Production Release Draft
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          name: "Production Build - ${{ github.run_id }}"
-          body: |
-            #
-            
-            - **闂佺粯绮犻崹浼淬€?*: Production
-            - **闂佸搫顑呯€氼剛绱撻幘鍓佸暗閻犲洩灏欓埀?*: ${{ github.event.inputs.build_type }}
-            - **闁荤喐鐟辩粻鎴ｃ亹閸岀偞鍤€?*: ${{ github.actor }}
-            - **闂佸搫鍟悥鐓幬?*: ${{ github.event.repository.updated_at }}
-            - **Commit**: ${{ github.sha }}
-            
-            闂佸疇娉曟刊瀵哥箔?闁荤姴娲ㄩ崗姗€鎮板▎鎴炲珰濞达絽鎲￠崐鐢告煕閹邦剛孝鐟滄澘鍊婚弫顕€宕橀埡濠傚Π Release闂?          files: ./artifacts/*.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Production Deploy Info
+      - name: Verify Release Artifact
         run: |
-          echo "闂?Production 闂備緡鍠撻崝搴ｆ媼閼碱兘鍋撻悷鐗堟拱闁?
-          echo "闂佸搫顑呯€氼剛绱撻幘鍓佸暗閻犲洩灏欓埀? ${{ github.event.inputs.build_type }}"
-          echo "闂佺粯绮犻崹浼淬€? ${{ github.event.inputs.environment }}"
-          echo "婵炲瓨绫傞崨顓涙寘:"
-          ls -lh ./artifacts/*.apk || true
+          if [ ! -f ./artifacts/app-release.apk ]; then
+            echo "Release APK not found!"
+            exit 1
+          fi
+          echo "Release APK verified:"
+          ls -lh ./artifacts/*.apk
 
-  # step
+      - name: Generate Production Info
+        run: |
+          cat > production-info.md << EOF
+          # Production Deployment Info
+          
+          - **Version**: ${{ github.sha }}
+          - **Deployed at**: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)
+          - **Triggered by**: ${{ github.actor }}
+          - **Commit**: ${{ github.sha }}
+          
+          ## Artifacts
+          $(sha256sum ./artifacts/*.apk)
+          
+          ## Pre-deployment Checklist
+          - [ ] All tests passed
+          - [ ] Code review approved
+          - [ ] Staging deployment verified
+          - [ ] Release notes prepared
+          EOF
+          cat production-info.md
+
+      - name: Upload Production Info
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-info-${{ github.run_id }}
+          path: production-info.md
+          retention-days: 30
+
   notify:
     name: Send Notification
     runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production]
-    if: always() && github.event.inputs.notify == 'true'
+    needs: [build, deploy-staging, deploy-production]
+    if: always()
     timeout-minutes: 5
     steps:
-      - name: Determine Deploy Status
-        id: deploy-status
+      - name: Determine Status
+        id: status
         run: |
-          STAGING_RESULT="${{ needs.deploy-staging.result }}"
-          PROD_RESULT="${{ needs.deploy-production.result }}"
-          
-          if [ "$STAGING_RESULT" == "success" ] || [ "$PROD_RESULT" == "success" ]; then
+          if [ "${{ needs.deploy-production.result }}" == "success" ] || [ "${{ needs.deploy-staging.result }}" == "success" ]; then
             echo "status=success" >> $GITHUB_OUTPUT
           else
             echo "status=failure" >> $GITHUB_OUTPUT
           fi
-          
-          echo "Staging: $STAGING_RESULT"
-          echo "Production: $PROD_RESULT"
 
       - name: Notify Slack
         if: env.SLACK_WEBHOOK_URL != ''
@@ -264,13 +225,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "濡絽鍟悾?MediAlert 闂佸綊娼ч鍛叏閳哄懏鐒鹃柕濞у棭鍞归柣搴ｆ嚀閺堫剟宕?,
+              "text": "MediAlert Manual Deployment",
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "濡絽鍟悾?MediAlert 闂佸綊娼ч鍛叏閳哄懏鐒鹃柕濞у棭鍞归梺纭呯堪閸庨亶骞?
+                    "text": "MediAlert Manual Deployment"
                   }
                 },
                 {
@@ -278,19 +239,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*闂佺粯绮犻崹浼淬€?*\n${{ github.event.inputs.environment }}"
+                      "text": "*Environment:*\n${{ github.event.inputs.environment }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*闂佸搫顑呯€氼剛绱撻幘鍓佸暗閻犲洩灏欓埀?*\n${{ github.event.inputs.build_type }}"
+                      "text": "*Build Type:*\n${{ github.event.inputs.build_type }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*闁荤喐鐟辩粻鎴ｃ亹閸岀偞鍤€?*\n${{ github.actor }}"
+                      "text": "*Status:*\n${{ steps.status.outputs.status == 'success' && 'Success' || 'Failed' }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*闂佺粯顭堥崺鏍焵?*\n${{ steps.deploy-status.outputs.status == 'success' && '闂?闂佺懓鐡ㄩ崝鏇熸叏? || '闂?婵犮垺鍎肩划鍓ф喆? }}"
+                      "text": "*Triggered by:*\n${{ github.actor }}"
                     }
                   ]
                 },
@@ -301,7 +262,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "闂佸搫琚崕鍐诧耿閸涱垱瀚氶柨鏃囨閸?
+                        "text": "View Details"
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }

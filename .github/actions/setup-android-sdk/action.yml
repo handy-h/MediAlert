@@ -1,0 +1,53 @@
+name: Setup Android SDK
+description: Setup JDK, Android SDK, and Gradle for building Android projects
+
+inputs:
+  java-version:
+    description: JDK version
+    required: false
+    default: '17'
+  gradle-version:
+    description: Gradle version
+    required: false
+    default: '9.5.0'
+  compile-sdk:
+    description: Android compile SDK version
+    required: false
+    default: '34'
+  cache-read-only:
+    description: Whether Gradle cache is read-only
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup JDK ${{ inputs.java-version }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: temurin
+        cache: gradle
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        packages: |
+          platforms;android-${{ inputs.compile-sdk }}
+          build-tools;${{ inputs.compile-sdk }}.0.0
+
+    - name: Validate Gradle Wrapper
+      uses: gradle/actions/wrapper-validation@v3
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: ${{ inputs.gradle-version }}
+        cache-read-only: ${{ inputs.cache-read-only }}
+
+    - name: Grant Gradlew Execute Permission
+      shell: bash
+      run: chmod +x gradlew || true

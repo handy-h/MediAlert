@@ -1,14 +1,11 @@
-#
 name: Cache Cleanup
 
 on:
   schedule:
-    #
     - cron: '0 20 * * 6'
   workflow_dispatch:
 
 jobs:
-  #
   cleanup-caches:
     name: Cleanup Old Caches
     runs-on: ubuntu-latest
@@ -38,7 +35,7 @@ jobs:
             for (const cache of caches.data.actions_caches) {
               const cacheDate = new Date(cache.created_at);
               
-              // 删除 7 天以上的缓存
+              // Delete caches older than 7 days
               if (cacheDate < sevenDaysAgo) {
                 await github.rest.actions.deleteActionsCacheById({
                   owner: context.repo.owner,
@@ -56,7 +53,6 @@ jobs:
             console.log(`- Deleted: ${deletedCount} caches`);
             console.log(`- Skipped (recent): ${skippedCount} caches`);
 
-  #
   cleanup-runs:
     name: Cleanup Old Workflow Runs
     runs-on: ubuntu-latest
@@ -95,7 +91,7 @@ jobs:
                 for (const run of runs.data.workflow_runs) {
                   const runDate = new Date(run.created_at);
                   
-                  // 删除 30 天以上的已完成运行
+                  // Delete completed runs older than 30 days
                   if (runDate < thirtyDaysAgo) {
                     await github.rest.actions.deleteWorkflowRun({
                       owner: context.repo.owner,
@@ -115,7 +111,6 @@ jobs:
             
             console.log(`\nTotal deleted: ${totalDeleted} runs`);
 
-  #
   cleanup-artifacts:
     name: Cleanup Old Artifacts
     runs-on: ubuntu-latest
@@ -142,7 +137,7 @@ jobs:
             for (const artifact of artifacts.data.artifacts) {
               const artifactDate = new Date(artifact.created_at);
               
-              // 删除 14 天以上的 artifacts（Release 产物除外）
+              // Delete artifacts older than 14 days (except release artifacts)
               if (artifactDate < fourteenDaysAgo && !artifact.name.includes('release-')) {
                 await github.rest.actions.deleteArtifact({
                   owner: context.repo.owner,

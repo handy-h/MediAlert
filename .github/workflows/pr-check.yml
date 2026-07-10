@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
     types: [opened, synchronize, reopened]
 
-#
+concurrency:
   group: pr-check-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
@@ -26,72 +26,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: true
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      - name: Step
+      - name: Compile Check
         run: ./gradlew compileDebugKotlin compileDebugJavaWithJavac --continue
 
-      - name: Step
+      - name: Lint Check
         run: ./gradlew lintDebug --continue || true
 
-      #
       - name: Check Code Format
         run: ./gradlew ktlintCheck --continue || true
 
-      - name: Step
+      - name: Detekt Check
         run: ./gradlew detekt --continue || true
 
   detailed-check:
     name: PR Detailed Check
     runs-on: ubuntu-latest
-    needs: pr-quick-check
+    needs: quick-check
     timeout-minutes: 30
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: true
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      #
       - name: Get Changed Files
         id: changed-files
         uses: tj-actions/changed-files@v42
@@ -103,7 +69,6 @@ jobs:
             **/*.gradle
             **/*.kts
 
-      #
       - name: List Changed Files
         run: |
           echo "Changed files:"
@@ -111,11 +76,9 @@ jobs:
           echo ""
           echo "Changed file count: ${{ steps.changed-files.outputs.all_changed_files_count }}"
 
-      #
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      #
       - name: Generate Test Report
         uses: dorny/test-reporter@v1
         if: always()
@@ -125,11 +88,9 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
-      #
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      #
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -138,7 +99,6 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-      #
       - name: Comment PR with Test Results
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -158,7 +118,6 @@ jobs:
               for (const file of files) {
                 if (file.endsWith('.xml')) {
                   const content = fs.readFileSync(`${path}/${file}`, 'utf8');
-                  // 瑙ｆ瀽 XML
                   const testsMatch = content.match(/tests="(\d+)"/);
                   const failuresMatch = content.match(/failures="(\d+)"/);
                   const errorsMatch = content.match(/errors="(\d+)"/);
@@ -178,22 +137,21 @@ jobs:
               
               const successRate = totalTests > 0 ? ((totalTests - totalFailures - totalErrors) / totalTests * 100).toFixed(1) : 0;
               
-              testResults = `馃搳 **娴嬭瘯缁撴灉**: ${totalTests} 娴嬭瘯, ${totalFailures} 澶辫触, ${totalErrors} 閿欒, ${totalSkipped} 璺宠繃\n`;
-              testResults += `鉁?**鎴愬姛鐜?*: ${successRate}%\n`;
+              testResults = `**Test Results**: ${totalTests} tests, ${totalFailures} failures, ${totalErrors} errors, ${totalSkipped} skipped\n`;
+              testResults += `**Success Rate**: ${successRate}%\n`;
               
               if (totalFailures > 0 || totalErrors > 0) {
-                testResults += `\n鈿狅笍 **瀛樺湪澶辫触鐨勬祴璇曪紝璇锋鏌ュ苟淇銆?*\n`;
+                testResults += `\n**Warning**: There are failing tests, please check and fix.\n`;
               }
             } catch (e) {
-              testResults = '鈿狅笍 鏃犳硶璇诲彇娴嬭瘯缁撴灉\n';
+              testResults = 'Could not read test results\n';
               console.error(e);
             }
             
-            const buildStatus = '${{ job.status }}' === 'success' ? '鉁? : '鉂?;
+            const buildStatus = '${{ job.status }}' === 'success' ? 'OK' : 'FAILED';
             
-            const body = `## 馃 PR 鑷姩鍖栨鏌ョ粨鏋淺n\n${testResults}\n馃摝 **鏋勫缓鐘舵€?*: ${buildStatus} Debug APK 鏋勫缓\n\n*鐢?GitHub Actions 鑷姩鐢熸垚*`;
+            const body = `## PR Automated Check Results\n\n${testResults}\n**Build Status**: ${buildStatus} Debug APK build\n\n*Generated by GitHub Actions*`;
             
-            // 鏌ユ壘鏄惁宸叉湁璇勮
             const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -201,11 +159,10 @@ jobs:
             });
             
             const botComment = comments.data.find(comment => 
-              comment.body.includes('馃 PR 鑷姩鍖栨鏌ョ粨鏋?)
+              comment.body.includes('PR Automated Check Results')
             );
             
             if (botComment) {
-              // 鏇存柊鐜版湁璇勮
               await github.rest.issues.updateComment({
                 comment_id: botComment.id,
                 owner: context.repo.owner,
@@ -213,7 +170,7 @@ jobs:
                 body: body
               });
             } else {
-              // 鍒涘缓鏂拌瘎璁?              await github.rest.issues.createComment({
+              await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -231,14 +188,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Label PR (if labeler config exists)
+      - name: Label PR
         uses: actions/labeler@v5
         if: hashFiles('.github/labeler.yml') != ''
         with:
           configuration-path: .github/labeler.yml
         continue-on-error: true
 
-      - name: Step
+      - name: Label by Branch Name
         uses: actions/github-script@v7
         with:
           script: |
@@ -275,7 +232,7 @@ jobs:
               console.log('No matching labels for branch:', branch);
             }
 
-  #
+  # PR Description Check
   pr-description-check:
     name: Check PR Description
     runs-on: ubuntu-latest
@@ -289,41 +246,40 @@ jobs:
             const pr = context.payload.pull_request;
             const body = pr.body || '';
             
-            // 妫€鏌?PR 鎻忚堪鏄惁鍖呭惈蹇呰淇℃伅
             const checks = {
               hasDescription: body.length > 50,
-              hasIssue: body.includes('#') || body.includes('issue') || body.includes('Issue') || body.includes(' closes ') || body.includes(' fixes '),
-              hasChanges: body.includes('鍙樻洿') || body.includes('change') || body.includes('淇敼') || body.includes('Changes') || body.includes('鏀瑰姩'),
-              hasType: body.includes('绫诲瀷') || body.includes('Type') || body.includes('绫诲瀷') || body.includes('feature') || body.includes('bugfix') || body.includes('hotfix')
+              hasIssue: body.includes('#') || body.includes('issue') || body.includes('closes') || body.includes('fixes'),
+              hasChanges: body.includes('change') || body.includes('修改') || body.includes('改动') || body.includes('Changes'),
+              hasType: body.includes('Type') || body.includes('feature') || body.includes('bugfix') || body.includes('hotfix')
             };
             
-            let message = '## 馃搵 PR 鎻忚堪妫€鏌n\n';
+            let message = '## PR Description Check\n\n';
             let allPassed = true;
             
             if (checks.hasDescription) {
-              message += '鉁?鍖呭惈瓒冲鐨勬弿杩癨n';
+              message += '- [x] Has sufficient description\n';
             } else {
-              message += '鈿狅笍 寤鸿娣诲姞鏇磋缁嗙殑鎻忚堪\n';
+              message += '- [ ] Suggest adding a more detailed description\n';
               allPassed = false;
             }
             
             if (checks.hasIssue) {
-              message += '鉁?鍏宠仈浜嗙浉鍏?Issue\n';
+              message += '- [x] Linked to related Issue\n';
             } else {
-              message += '馃挕 寤鸿鍏宠仈鐩稿叧 Issue锛堜娇鐢?`#123` 鎴?`closes #123`锛塡n';
+              message += '- [ ] Consider linking a related Issue (use `#123` or `closes #123`)\n';
             }
             
             if (checks.hasChanges) {
-              message += '鉁?璇存槑浜嗗彉鏇村唴瀹筡n';
+              message += '- [x] Describes the changes\n';
             } else {
-              message += '馃挕 寤鸿璇存槑鍏蜂綋鐨勫彉鏇村唴瀹筡n';
+              message += '- [ ] Suggest describing the specific changes\n';
               allPassed = false;
             }
             
             if (allPassed) {
-              message += '\n馃帀 PR 鎻忚堪妫€鏌ラ€氳繃锛?;
+              message += '\nPR description check passed!';
             } else {
-              message += '\n馃挕 鎻愮ず: 璇疯ˉ鍏?PR 鎻忚堪锛岃鏄庡彉鏇村唴瀹瑰拰鍘熷洜銆?;
+              message += '\nTip: Please supplement the PR description with change details and rationale.';
             }
             
             await github.rest.issues.createComment({
@@ -333,6 +289,7 @@ jobs:
               body: message
             });
 
+  # PR Size Check
   size-check:
     name: PR Size Check
     runs-on: ubuntu-latest
@@ -369,22 +326,21 @@ jobs:
             
             if (totalChanges <= 50) {
               sizeLabel = 'size: XS';
-              message = '鉁?PR 澶у皬鍚堥€?(XS)';
+              message = 'PR size is appropriate (XS)';
             } else if (totalChanges <= 100) {
               sizeLabel = 'size: S';
-              message = '鉁?PR 澶у皬鍚堥€?(S)';
+              message = 'PR size is appropriate (S)';
             } else if (totalChanges <= 300) {
               sizeLabel = 'size: M';
-              message = '鈿狅笍 PR 澶у皬涓瓑 (M)锛屽缓璁€冭檻鎷嗗垎';
+              message = 'PR size is medium (M), consider splitting';
             } else if (totalChanges <= 500) {
               sizeLabel = 'size: L';
-              message = '鈿狅笍 PR 杈冨ぇ (L)锛屽己鐑堝缓璁媶鍒嗕负澶氫釜灏?PR';
+              message = 'PR is large (L), strongly recommend splitting into smaller PRs';
             } else {
               sizeLabel = 'size: XL';
-              message = '鉂?PR 杩囧ぇ (XL)锛屽繀椤绘媶鍒嗕互鎻愰珮浠ｇ爜瀹℃煡璐ㄩ噺';
+              message = 'PR is too large (XL), must split to improve code review quality';
             }
             
-            // 娣诲姞澶у皬鏍囩
             try {
               await github.rest.issues.addLabels({
                 issue_number: context.issue.number,
@@ -399,44 +355,44 @@ jobs:
             console.log(`PR Size: ${totalChanges} changes (${totalAdditions} additions, ${totalDeletions} deletions)`);
             console.log(message);
 
+  # PR Merge Check
   merge-check:
     name: PR Merge Check
     runs-on: ubuntu-latest
     if: github.event.action == 'opened' || github.event.action == 'synchronize'
     timeout-minutes: 5
-    needs: [pr-quick-check, pr-detailed-check]
+    needs: [quick-check, detailed-check]
     steps:
       - name: Check Merge Requirements
         uses: actions/github-script@v7
         with:
           script: |
-            const quickCheck = '${{ needs.pr-quick-check.result }}';
-            const detailedCheck = '${{ needs.pr-detailed-check.result }}';
+            const quickCheck = '${{ needs.quick-check.result }}';
+            const detailedCheck = '${{ needs.detailed-check.result }}';
             
             let status = 'success';
-            let message = '## 鉁?PR 鍚堝苟妫€鏌n\n';
+            let message = '## PR Merge Check\n\n';
             
             if (quickCheck === 'success') {
-              message += '- 鉁?蹇€熸鏌ラ€氳繃\n';
+              message += '- [x] Quick check passed\n';
             } else {
-              message += '- 鉂?蹇€熸鏌ュけ璐n';
+              message += '- [ ] Quick check failed\n';
               status = 'failure';
             }
             
             if (detailedCheck === 'success') {
-              message += '- 鉁?璇︾粏妫€鏌ラ€氳繃\n';
+              message += '- [x] Detailed check passed\n';
             } else {
-              message += '- 鉂?璇︾粏妫€鏌ュけ璐n';
+              message += '- [ ] Detailed check failed\n';
               status = 'failure';
             }
             
             if (status === 'success') {
-              message += '\n馃帀 鎵€鏈夋鏌ラ€氳繃锛屽彲浠ュ悎骞讹紒';
+              message += '\nAll checks passed, ready to merge!';
             } else {
-              message += '\n鈿狅笍 璇蜂慨澶嶄笂杩伴棶棰樺悗鍐嶅悎骞躲€?;
+              message += '\nPlease fix the above issues before merging.';
             }
             
-            // 璁剧疆 commit status
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,

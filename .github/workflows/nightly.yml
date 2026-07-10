@@ -2,17 +2,16 @@ name: Nightly Build
 
 on:
   schedule:
-    #
     - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
       full_analysis:
-        description: 'Value'
+        description: 'Run full code quality analysis'
         required: false
         default: true
         type: boolean
 
-#
+concurrency:
   group: nightly-build
   cancel-in-progress: false
 
@@ -33,41 +32,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: false
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      - name: Step
+      - name: Run Full Code Quality Analysis
         if: github.event.inputs.full_analysis != 'false'
         run: |
           ./gradlew lintDebug --continue || true
           ./gradlew detekt --continue || true
           ./gradlew ktlintCheck --continue || true
 
-      - name: Step
+      - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      #
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
@@ -78,21 +59,21 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      - name: Step
+      - name: Generate Build Report
         run: |
           REPORT_FILE="build-report.md"
-          echo "# 妫ｅ啫顕?MediAlert Nightly Build Report" > $REPORT_FILE
+          echo "# MediAlert Nightly Build Report" > $REPORT_FILE
           echo "" >> $REPORT_FILE
-          echo "| 濡炪倕婀卞ú?| 闁?|" >> $REPORT_FILE
-          echo "|------|-----|" >> $REPORT_FILE
-          echo "| 闁哄啨鍎插﹢?| $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC) |" >> $REPORT_FILE
+          echo "| Item | Value |" >> $REPORT_FILE
+          echo "|------|-------|" >> $REPORT_FILE
+          echo "| Date | $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC) |" >> $REPORT_FILE
           echo "| Commit | ${{ github.sha }} |" >> $REPORT_FILE
-          echo "| 闁告帒妫欓弫?| ${{ github.ref_name }} |" >> $REPORT_FILE
-          echo "| 閻熸瑱绠戣ぐ?| ${{ github.event_name == 'schedule' && '閻庤纰嶅鍌滄嫬閸愩劌顔? || '闁归潧顑呮慨鈺冩喆閿曗偓瑜? }} |" >> $REPORT_FILE
+          echo "| Branch | ${{ github.ref_name }} |" >> $REPORT_FILE
+          echo "| Trigger | ${{ github.event_name == 'schedule' && 'Scheduled' || 'Manual' }} |" >> $REPORT_FILE
           echo "" >> $REPORT_FILE
           echo "## Build Status" >> $REPORT_FILE
           echo "" >> $REPORT_FILE
-          echo "闁?All builds completed successfully" >> $REPORT_FILE
+          echo "- All builds completed successfully" >> $REPORT_FILE
           echo "" >> $REPORT_FILE
           echo "## Artifacts" >> $REPORT_FILE
           echo "" >> $REPORT_FILE
@@ -107,7 +88,7 @@ jobs:
           
           cat $REPORT_FILE
 
-      - name: Step
+      - name: Upload Nightly Builds
         uses: actions/upload-artifact@v4
         with:
           name: nightly-builds-${{ github.run_id }}
@@ -117,16 +98,16 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      - name: Step
+      - name: Upload Build Report
         uses: actions/upload-artifact@v4
         with:
           name: nightly-build-report-${{ github.run_id }}
           path: build-report.md
           retention-days: 7
 
-      - name: Step
+      - name: Output Build Summary
         run: |
-          echo "闁?Nightly build completed"
+          echo "Nightly build completed"
           echo "Debug APK:"
           ls -lh app/build/outputs/apk/debug/*.apk || true
           echo "Release APK:"
@@ -137,41 +118,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: false
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      - name: Step
+      - name: Check Dependency Updates
         run: ./gradlew dependencyUpdates -Drevision=release --continue || true
 
-      - name: Step
+      - name: Run Dependency Security Scan
         run: ./gradlew dependencyCheckAnalyze --continue || true
 
-      #
       - name: Generate Dependency Report Summary
         run: |
           REPORT_FILE="dependency-report.md"
-          echo "# 妫ｅ啯鎲?Dependency Report" > $REPORT_FILE
+          echo "# Dependency Report" > $REPORT_FILE
           echo "" >> $REPORT_FILE
-          echo "闁汇垻鍠愰崹姘跺籍閸洘锛? $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)" >> $REPORT_FILE
+          echo "Generated at: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)" >> $REPORT_FILE
           echo "" >> $REPORT_FILE
           
           if [ -f "build/dependencyUpdates/report.txt" ]; then
@@ -186,7 +151,7 @@ jobs:
           
           cat $REPORT_FILE
 
-      - name: Step
+      - name: Upload Dependency Reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -198,7 +163,7 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      - name: Step
+      - name: Create or Update Dependency Issue
         if: hashFiles('build/dependencyUpdates/report.txt') != ''
         uses: actions/github-script@v7
         with:
@@ -213,15 +178,14 @@ jobs:
             
             const content = fs.readFileSync(path, 'utf8');
             
-            // 婵☆偀鍋撻柡灞诲劜濡叉悂宕ラ敂鑺ョ畳闁告瑯鍨卞ú鍧楀棘娴兼番鈧?            if (!content.includes('->')) {
+            if (!content.includes('->')) {
               console.log('No dependency updates available');
               return;
             }
             
-            const title = `妫ｅ啯鎲?Dependency Updates Available - ${new Date().toISOString().split('T')[0]}`;
+            const title = `Dependency Updates Available - ${new Date().toISOString().split('T')[0]}`;
             const body = `## Available Dependency Updates\n\n\`\`\`\n${content}\n\`\`\`\n\n*This issue was automatically generated by the nightly build workflow.*`;
             
-            // 婵☆偀鍋撻柡灞诲劜濡叉悂宕ラ敃鈧崙锛勨偓娑櫭﹢顏堟儎缁嬫寧鍊遍柡宥呮喘椤ｄ粙鎯?open issue
             const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -229,10 +193,9 @@ jobs:
               labels: 'dependencies'
             });
             
-            const existingIssue = issues.data.find(i => i.title.startsWith('妫ｅ啯鎲?Dependency Updates Available'));
+            const existingIssue = issues.data.find(i => i.title.startsWith('Dependency Updates Available'));
             
             if (existingIssue) {
-              // 闁哄洤鐡ㄩ弻濠囨偝閻楀牊绠?issue
               await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -241,7 +204,6 @@ jobs:
               });
               console.log(`Updated issue #${existingIssue.number}`);
             } else {
-              // 闁告帗绋戠紓鎾诲棘?issue
               const newIssue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -253,7 +215,7 @@ jobs:
             }
         continue-on-error: true
 
-  # 通知
+  # Notifications
   notify:
     name: Send Nightly Notification
     runs-on: ubuntu-latest
@@ -284,13 +246,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "妫ｅ啫顕?MediAlert 濠㈣埖绮撳Λ鍧楀几閸曨偆绱﹂悗鐟版湰閸?,
+              "text": "MediAlert Nightly Build Notification",
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "妫ｅ啫顕?MediAlert 濠㈣埖绮撳Λ鍧楀几閸曨偆绱﹂柟韬插劚閹?
+                    "text": "MediAlert Nightly Build Report"
                   }
                 },
                 {
@@ -298,19 +260,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*闁哄瀚紓鎾绘偐閼哥鍋?*\n${{ steps.status.outputs.status == 'success' && '闁?闁瑰瓨鍔曟慨? || steps.status.outputs.status == 'partial' && '闁宠法濯寸粭?闂侇喓鍔岄崹搴ㄥ箣閹邦剙顫? || '闁?濠㈡儼绮剧憴? }}"
+                      "text": "*Build Status:*\n${{ steps.status.outputs.status == 'success' && 'Success' || steps.status.outputs.status == 'partial' && 'Partial Success' || 'Failed' }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*濞撴碍绻嗙粋鍡椢涢埀顒勫蓟?*\n${{ needs.dependency-check.result == 'success' && '闁?閻庣懓鏈崹? || '闁?濠㈡儼绮剧憴? }}"
+                      "text": "*Dependency Check:*\n${{ needs.dependency-check.result == 'success' && 'Passed' || 'Failed' }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*闁圭粯鍔掑?*\n${{ github.sha }}"
+                      "text": "*Commit:*\n${{ github.sha }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*闁哄啨鍎插﹢?*\n${{ github.run_id }}"
+                      "text": "*Run ID:*\n${{ github.run_id }}"
                     }
                   ]
                 },
@@ -321,7 +283,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "闁哄被鍎冲﹢鍛嫚閿旇棄鍓?
+                        "text": "View Details"
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
@@ -333,14 +295,13 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         continue-on-error: true
 
-      #
       - name: Create Failure Issue
         if: needs.nightly-build.result == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
-            const title = `妫ｅ啯鐦?Nightly Build Failed - ${new Date().toISOString().split('T')[0]}`;
-            const body = `## Nightly Build Failed\n\n- **Run ID**: ${{ github.run_id }}\n- **Commit**: ${{ github.sha }}\n- **Branch**: ${{ github.ref_name }}\n\n[闁哄被鍎冲﹢鍛交閹邦垼鏀介悹鍥烽檮閸庡滑(${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This issue was automatically generated.*`;
+            const title = `Nightly Build Failed - ${new Date().toISOString().split('T')[0]}`;
+            const body = `## Nightly Build Failed\n\n- **Run ID**: ${{ github.run_id }}\n- **Commit**: ${{ github.sha }}\n- **Branch**: ${{ github.ref_name }}\n\n[View build details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n*This issue was automatically generated.*`;
             
             await github.rest.issues.create({
               owner: context.repo.owner,
