@@ -8,7 +8,6 @@ on:
   release:
     types: [published]
 
-#
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,52 +25,32 @@ env:
 
 jobs:
   # ==========================================
-  #
+  # Code Quality & Security
+  # ==========================================
   code-quality:
     name: Code Quality & Security Scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      #
       - name: Run Detekt Analysis
         run: ./gradlew detekt --continue || true
 
-      #
       - name: Run Android Lint
         run: ./gradlew lintDebug --continue || true
 
-      #
       - name: Run Dependency Vulnerability Scan
         run: ./gradlew dependencyCheckAnalyze --continue || true
 
-      - name: Step
+      - name: Run Ktlint Check
         run: ./gradlew ktlintCheck --continue || true
 
-      #
       - name: Upload Lint Reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -87,7 +66,6 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      #
       - name: Upload Detekt SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('build/reports/detekt/detekt.sarif') != ''
@@ -95,7 +73,7 @@ jobs:
           sarif_file: build/reports/detekt/detekt.sarif
 
   # ==========================================
-  #
+  # Unit Tests
   # ==========================================
   unit-tests:
     name: Unit Tests
@@ -103,33 +81,16 @@ jobs:
     needs: code-quality
     timeout-minutes: 30
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      #
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      #
       - name: Generate Test Report
         uses: dorny/test-reporter@v1
         if: always()
@@ -139,7 +100,6 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
-      #
       - name: Upload Test Reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -151,7 +111,6 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      #
       - name: Generate Coverage Report
         run: ./gradlew jacocoTestReport --continue || true
 
@@ -166,7 +125,7 @@ jobs:
           verbose: true
 
   # ==========================================
-  #
+  # Integration Tests
   # ==========================================
   integration-tests:
     name: Integration Tests (API ${{ matrix.api-level }})
@@ -178,35 +137,20 @@ jobs:
       matrix:
         api-level: [29, 33, 34]
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      - name: Step
+      - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Step
+      - name: Run Integration Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -216,10 +160,8 @@ jobs:
           script: ./gradlew connectedDebugAndroidTest --stacktrace
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          #
           ndk: 23.1.7779620
 
-      #
       - name: Upload Instrumented Test Reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -232,7 +174,7 @@ jobs:
           if-no-files-found: warn
 
   # ==========================================
-  #
+  # Build Debug
   # ==========================================
   build-debug:
     name: Build Debug APK
@@ -240,33 +182,16 @@ jobs:
     needs: [code-quality, unit-tests]
     timeout-minutes: 20
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      #
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      #
       - name: Sign Debug APK
         id: sign-debug
         uses: r0adkll/sign-android-release@v1
@@ -280,7 +205,6 @@ jobs:
           BUILD_TOOLS_VERSION: "34.0.0"
         continue-on-error: true
 
-      #
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -290,15 +214,13 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      #
       - name: Output APK Info
         run: |
           echo "Debug APK built successfully"
           ls -lh app/build/outputs/apk/debug/*.apk || true
-          aapt dump badging app/build/outputs/apk/debug/app-debug.apk 2>/dev/null | grep package || true
 
   # ==========================================
-  #
+  # Build Release
   # ==========================================
   build-release:
     name: Build Release APK/AAB
@@ -308,35 +230,18 @@ jobs:
     timeout-minutes: 25
     environment: production
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: false
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      #
       - name: Decode Release Signing Key
         run: |
           echo "${{ secrets.RELEASE_SIGNING_KEY }}" | base64 -d > app/release.jks
           ls -lh app/release.jks
 
-      #
       - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
@@ -344,7 +249,6 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      #
       - name: Build Release AAB
         run: ./gradlew bundleRelease
         env:
@@ -352,7 +256,6 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      #
       - name: Verify APK Signature
         run: |
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
@@ -362,7 +265,6 @@ jobs:
             echo "Release APK not found"
           fi
 
-      #
       - name: Verify AAB Signature
         run: |
           if [ -f "app/build/outputs/bundle/release/app-release.aab" ]; then
@@ -372,7 +274,7 @@ jobs:
             echo "Release AAB not found"
           fi
 
-      - name: Step
+      - name: Generate Checksums
         run: |
           cd app/build/outputs
           echo "# MediAlert Release Checksums" > checksums.txt
@@ -389,7 +291,6 @@ jobs:
           fi
           cat checksums.txt
 
-      #
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
@@ -399,7 +300,6 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      #
       - name: Upload Release AAB
         uses: actions/upload-artifact@v4
         with:
@@ -409,7 +309,6 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      #
       - name: Upload Checksums
         uses: actions/upload-artifact@v4
         with:
@@ -417,14 +316,12 @@ jobs:
           path: app/build/outputs/checksums.txt
           retention-days: 14
 
-      #
       - name: Clean Signing Key
         if: always()
         run: |
           rm -f app/release.jks
           echo "Signing key cleaned up"
 
-      #
       - name: Output Build Info
         run: |
           echo "Release build completed"
@@ -432,7 +329,7 @@ jobs:
           ls -lh app/build/outputs/bundle/release/*.aab || true
 
   # ==========================================
-  #
+  # Deploy to GitHub Releases
   # ==========================================
   deploy-github:
     name: Deploy to GitHub Releases
@@ -459,7 +356,6 @@ jobs:
           name: release-checksums-${{ github.run_id }}
           path: ./artifacts
 
-      #
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
@@ -471,7 +367,7 @@ jobs:
           fail_on_unmatched_files: false
 
   # ==========================================
-  #
+  # Notifications
   # ==========================================
   notify:
     name: Send Notifications
@@ -499,13 +395,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "鉁?MediAlert 鏋勫缓鎴愬姛锛?,
+              "text": "MediAlert build succeeded",
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "馃帀 MediAlert CI/CD 娴佹按绾挎垚鍔?
+                    "text": "MediAlert CI/CD Pipeline Success"
                   }
                 },
                 {
@@ -513,19 +409,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*鍒嗘敮:*\n${{ github.ref_name }}"
+                      "text": "*Branch:*\n${{ github.ref_name }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*鎻愪氦:*\n${{ github.sha }}"
+                      "text": "*Commit:*\n${{ github.sha }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*瑙﹀彂鑰?*\n${{ github.actor }}"
+                      "text": "*Triggered by:*\n${{ github.actor }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*鐘舵€?*\n鉁?鎴愬姛"
+                      "text": "*Status:*\nSuccess"
                     }
                   ]
                 },
@@ -536,7 +432,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "鏌ョ湅璇︽儏"
+                        "text": "View Details"
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
@@ -553,13 +449,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "鉂?MediAlert 鏋勫缓澶辫触锛?,
+              "text": "MediAlert build failed",
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "馃毃 MediAlert CI/CD 娴佹按绾垮け璐?
+                    "text": "MediAlert CI/CD Pipeline Failed"
                   }
                 },
                 {
@@ -567,19 +463,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*鍒嗘敮:*\n${{ github.ref_name }}"
+                      "text": "*Branch:*\n${{ github.ref_name }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*鎻愪氦:*\n${{ github.sha }}"
+                      "text": "*Commit:*\n${{ github.sha }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*瑙﹀彂鑰?*\n${{ github.actor }}"
+                      "text": "*Triggered by:*\n${{ github.actor }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*鐘舵€?*\n鉂?澶辫触"
+                      "text": "*Status:*\nFailed"
                     }
                   ]
                 },
@@ -587,7 +483,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*鏌ョ湅璇︽儏:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|鐐瑰嚮杩欓噷>"
+                    "text": "*View Details:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>"
                   }
                 }
               ]
@@ -595,7 +491,6 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      #
       - name: Send Email Notification
         if: steps.status.outputs.status == 'failure' && env.EMAIL_USERNAME != ''
         uses: dawidd6/action-send-mail@v3
@@ -604,17 +499,18 @@ jobs:
           server_port: 587
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "鉂?MediAlert 鏋勫缓澶辫触 - ${{ github.ref_name }}"
+          subject: "MediAlert build failed - ${{ github.ref_name }}"
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: ${{ secrets.EMAIL_USERNAME }}
           body: |
-            MediAlert 椤圭洰鏋勫缓澶辫触锛?            
-            鍒嗘敮: ${{ github.ref_name }}
-            鎻愪氦: ${{ github.sha }}
-            瑙﹀彂鑰? ${{ github.actor }}
-            鏃堕棿: ${{ github.event.head_commit.timestamp }}
-            
-            鏌ョ湅璇︽儏: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            MediAlert build failed.
+
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Triggered by: ${{ github.actor }}
+            Time: ${{ github.event.head_commit.timestamp }}
+
+            View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
         continue-on-error: true

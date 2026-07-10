@@ -1,4 +1,4 @@
-#
+name: Issue & PR Management
 
 on:
   issues:
@@ -7,9 +7,11 @@ on:
     types: [opened, closed, reopened]
   issue_comment:
     types: [created]
+  schedule:
+    - cron: '0 21 * * *'
+  workflow_dispatch:
 
 jobs:
-  #
   stale-issues:
     name: Mark Stale Issues
     runs-on: ubuntu-latest
@@ -29,7 +31,6 @@ jobs:
           exempt-issue-labels: 'pinned,security,bug'
           exempt-pr-labels: 'pinned,security'
 
-  #
   issue-labeler:
     name: Auto Label Issues
     runs-on: ubuntu-latest
@@ -45,31 +46,32 @@ jobs:
             const body = (issue.body || '').toLowerCase();
             const labels = [];
             
-            // 閺嶈宓侀弽鍥暯閸滃苯鍞寸€圭鍤滈崝銊ュ瀻缁?            if (title.includes('bug') || title.includes('闁挎瑨顕?) || title.includes('瀹曗晜绨?) || title.includes('crash')) {
+            // Auto-label based on keywords
+            if (title.includes('bug') || title.includes('crash') || title.includes('error')) {
               labels.push('bug');
             }
             
-            if (title.includes('feature') || title.includes('閸旂喕鍏?) || title.includes('enhancement') || title.includes('鐠囬攱鐪?)) {
+            if (title.includes('feature') || title.includes('enhancement') || title.includes('request')) {
               labels.push('feature');
             }
             
-            if (title.includes('doc') || title.includes('閺傚洦銆?) || title.includes('readme')) {
+            if (title.includes('doc') || title.includes('documentation') || title.includes('readme')) {
               labels.push('documentation');
             }
             
-            if (title.includes('performance') || title.includes('閹嗗厴') || title.includes('slow') || title.includes('閸楋繝銆?)) {
+            if (title.includes('performance') || title.includes('slow') || title.includes('lag')) {
               labels.push('performance');
             }
             
-            if (title.includes('security') || title.includes('鐎瑰鍙?) || title.includes('vulnerability')) {
+            if (title.includes('security') || title.includes('vulnerability')) {
               labels.push('security');
             }
             
-            if (title.includes('ui') || title.includes('閻ｅ矂娼?) || title.includes('閺勫墽銇?) || title.includes('鐢啫鐪?)) {
+            if (title.includes('ui') || title.includes('design') || title.includes('layout')) {
               labels.push('ui');
             }
             
-            if (title.includes('database') || title.includes('閺佺増宓?) || title.includes('room') || title.includes('sql')) {
+            if (title.includes('database') || title.includes('room') || title.includes('sql')) {
               labels.push('database');
             }
             
@@ -83,7 +85,6 @@ jobs:
               console.log(`Added labels: ${labels.join(', ')}`);
             }
 
-  # step
   welcome:
     name: Welcome Contributors
     runs-on: ubuntu-latest
@@ -96,7 +97,8 @@ jobs:
           script: |
             const creator = context.payload[github.event_name].user.login;
             
-            // 濡偓閺屻儳鏁ら幋閿嬫Ц閸氾箑鍑￠張澶庣閻?            const issues = await github.rest.issues.listForRepo({
+            // Check if this is the user's first contribution
+            const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               creator: creator,
@@ -108,7 +110,7 @@ jobs:
               (issues.data.length === 1 && issues.data[0].number === context.issue.number);
             
             if (isFirstContribution) {
-              const body = `## 棣冨竴 濞嗐垼绻?@${creator}!\n\n閹扮喕闃块幃銊よ礋 MediAlert 妞ゅ湱娲伴崑姘毉鐠愶紕灏為敍涔梟\n鐠囬鈥樻穱婵撶窗\n- [ ] 闂冨懓顕版禍?[鐠愶紕灏為幐鍥у础](CONTRIBUTING.md)\n- [ ] 闁潧鎯婃禍鍡曞敩閻浇顫夐懠鍍渘- [ ] 濞ｈ濮炴禍鍡楃箑鐟曚胶娈戝ù瀣槸\n\n婵″倹婀佹禒璁崇秿闂傤噣顣介敍灞绢偨鏉╁酣娈㈤弮鑸靛絹闂傤噯绱抈;
+              const body = `## Welcome @${creator}!\n\nThank you for your first contribution to MediAlert!\nPlease make sure to:\n- [ ] Read the [CONTRIBUTING.md](CONTRIBUTING.md)\n- [ ] Follow the code style guidelines\n- [ ] Add tests for your changes\n\nWe appreciate your contribution!`;
               
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
@@ -118,7 +120,7 @@ jobs:
               });
             }
 
-  stale-issues:
+  pr-cleanup:
     name: PR Cleanup
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -133,7 +135,8 @@ jobs:
             if (pr.merged) {
               const branch = pr.head.ref;
               
-              // 娑撳秴鍨归梽?main 閸?develop 閸掑棙鏁?              if (branch !== 'main' && branch !== 'develop') {
+              // Don't delete main or develop branches
+              if (branch !== 'main' && branch !== 'develop') {
                 try {
                   await github.rest.git.deleteRef({
                     owner: context.repo.owner,

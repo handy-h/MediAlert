@@ -1,4 +1,4 @@
-#
+name: Security Scan
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main, develop]
   schedule:
-    #
     - cron: '0 19 * * 0'
   workflow_dispatch:
 
@@ -15,38 +14,20 @@ env:
   GRADLE_VERSION: '9.5.0'
 
 jobs:
-  #
   dependency-security:
     name: Dependency Security Scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      # OWASP Dependency Check
       - name: Run OWASP Dependency Check
         run: ./gradlew dependencyCheckAnalyze --continue || true
 
-      #
       - name: Upload Security Report
         uses: actions/upload-artifact@v4
         if: always()
@@ -57,14 +38,12 @@ jobs:
             build/reports/dependency-check-report.xml
           retention-days: 30
 
-      #
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('build/reports/dependency-check-report.sarif') != ''
         with:
           sarif_file: build/reports/dependency-check-report.sarif
 
-  #
   codeql-analysis:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
@@ -83,23 +62,11 @@ jobs:
           languages: java-kotlin
           queries: security-extended,security-and-quality
 
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
-
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
 
       - name: Build Project
         run: ./gradlew assembleDebug
@@ -109,7 +76,6 @@ jobs:
         with:
           category: "/language:java-kotlin"
 
-  #
   secret-scan:
     name: Secret Scanning
     runs-on: ubuntu-latest

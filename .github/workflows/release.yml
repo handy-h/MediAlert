@@ -1,4 +1,4 @@
-#
+name: Release
 
 on:
   push:
@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Parameter'
+        description: 'Release version (e.g. 1.0.0)'
         required: true
         type: string
       prerelease:
-        description: 'Parameter'
+        description: 'Mark as prerelease'
         required: false
         default: false
         type: boolean
@@ -21,7 +21,6 @@ env:
   GRADLE_VERSION: '9.5.0'
 
 jobs:
-  # step
   validate:
     name: Validate Version
     runs-on: ubuntu-latest
@@ -39,12 +38,12 @@ jobs:
           fi
           
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "闂?闂佺粯顨呴悧濠傦耿娴兼潙鐭楅梺鍨儑婢规劗鈧鍠栫换姗€寮繝鍕珰? $VERSION"
-            echo "闂佸搫鐗忛崰鎰耿濠婂牆鍐€闁绘挸娴风涵鈧? x.y.z (婵炴挻鑹鹃鍛淬€? 1.2.1)"
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: x.y.z (e.g. 1.2.1)"
             exit 1
           fi
           
-          echo "闂?闂佺粯顨呴悧濠傦耿娴兼潙鐭楅梺鍨儑婢规劗鈧鍠栫换鎴︻敆濠婂懏鍏? $VERSION"
+          echo "Valid version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Check Version in build.gradle.kts
@@ -58,46 +57,29 @@ jobs:
           APP_VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts || echo "")
           
           if [ "$APP_VERSION" != "$VERSION" ]; then
-            echo "闂佸疇娉曟刊瀵哥箔?闁荤姭鍋撻柨鏇楀亾闁? Git 闂佸搫绉村ú銊╊敆閻戣姤鍋嬮柛顐ゅ枑閹?($VERSION) 婵?build.gradle.kts 婵炴垶鎼╅崢鎯р枔閹达附鍋嬮柛顐ゅ枑閹?($APP_VERSION) 婵炴垶鎸哥粔宕囩博閹绢喗鍤?
-            echo "闁荤姴娲ˉ鎾诲灳濡崵鈹嶆繝闈涚墕椤ｅジ鏌￠崼顐㈠鐟滄澘鐏濋蹇涘矗婢跺鍑介梺?
+            echo "Warning: Git tag version ($VERSION) does not match build.gradle.kts version ($APP_VERSION)"
+            echo "Please update the version in build.gradle.kts before releasing."
           else
-            echo "闂?闂佺粯顨呴悧濠傦耿娴兼潙鐭楅柧姘€婚閬嶆煠? $VERSION"
+            echo "Version matches: $VERSION"
           fi
 
-  #
   build:
     name: Build Release
     runs-on: ubuntu-latest
     needs: validate
     timeout-minutes: 30
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-android-sdk
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: false
 
-      - name: Grant Gradlew Execute Permission
-        run: chmod +x gradlew || true
-
-      - name: Step
+      - name: Decode Release Signing Key
         run: |
           echo "${{ secrets.RELEASE_SIGNING_KEY }}" | base64 -d > app/release.jks
 
-      #
       - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
@@ -105,7 +87,6 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      #
       - name: Build Release AAB
         run: ./gradlew bundleRelease
         env:
@@ -113,11 +94,11 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
 
-      - name: Step
+      - name: Verify APK Signature
         run: |
           jarsigner -verify -verbose -certs app/build/outputs/apk/release/app-release.apk || true
 
-      - name: Step
+      - name: Generate Checksums
         run: |
           cd app/build/outputs
           echo "# MediAlert Release Checksums" > checksums.txt
@@ -131,7 +112,7 @@ jobs:
           echo "AAB SHA256:" >> checksums.txt
           sha256sum bundle/release/*.aab >> checksums.txt
 
-      - name: Step
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
@@ -152,11 +133,10 @@ jobs:
           path: app/build/outputs/checksums.txt
           retention-days: 30
 
-      - name: Step
+      - name: Clean Signing Key
         if: always()
         run: rm -f app/release.jks
 
-  #
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -185,28 +165,27 @@ jobs:
 
       - name: Generate Release Notes
         run: |
-          if [ "${{ github.event_name }}" == "push" ]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION="${{ github.event.inputs.version }}"
-          fi
-          
           cat > release-notes.md << EOF
-          #
+          # MediAlert v${{ env.VERSION }}
           
-          #
-          - **APK**: 闂備緡鍋勯崐濠氬极閵堝棛顩查幖杈剧稻缁绢垶鏌熼幁鎺戝姎闁伙絻鍔庨幉妤呭川椤撶偟鍘?Android 闁荤姳鐒﹂崕鎶剿?          - **AAB**: 闂備緡鍋勯崐濠氬极閵堝棛顩?Google Play 闂佸憡鐟﹂崹鐢电博?          
-          #
-          闁荤姴娲ㄩ崗姗€鎮板▎鎴炲珰濞达綁顥撻悷鎾诲级閻愯泛袚闁哄鍟粋鎺楀礈娴ｅ湱鏆?SHA256 闂佸搫绋勭换婵嬫偘濞嗘挸妞界€光偓鐎ｎ剛鐛?          
+          ## Downloads
+          - **APK**: Direct install for Android devices
+          - **AAB**: For Google Play Store upload
+          
+          ## Verification
+          Verify file integrity using SHA256 checksums:
+          
           \`\`\`
           $(cat ./artifacts/checksums.txt | grep -v "^#")
           \`\`\`
           
-          #
-          1. 婵炴垶鎸搁鍫澝?APK 闂佸搫鍊稿ú锝呪枎?          2. 闂?Android 闁荤姳鐒﹂崕鎶剿囬浣衡枖濠电姴鍊哥敮鎺楁偣娴ｄ警鐒鹃柣锝冨妿閹叉宕ㄩ钘夌处闂佹椿鍘归崕鎻掝焽闂堟稈鏀﹂柟閭﹀墰鐎瑰鏌?          3. 闁诲海鎳撻ˇ鎶剿?APK
+          ## Installation
+          1. Download the APK file
+          2. Enable "Install from unknown sources" in Android settings
+          3. Install the APK
           
           ---
-          *濠?Release 闂?GitHub Actions 闂佺厧顨庢禍婊勬叏閳哄懏鍋ㄩ柣鏃傤焾閻?
+          *This Release was created automatically by GitHub Actions.*
           EOF
 
       - name: Create Release
@@ -221,7 +200,6 @@ jobs:
           prerelease: ${{ github.event.inputs.prerelease || false }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # step
   notify:
     name: Send Notification
     runs-on: ubuntu-latest
@@ -235,13 +213,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "濡絽鍟粩?MediAlert 闂佸搫鍊规竟鍡樻櫠濡ゅ懎瀚夋い鎺嗗亾鐟滄澘鍊婚弫顕€宕樼捄銊э紲",
+              "text": "MediAlert new release published",
               "blocks": [
                 {
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "濡絽鍟粩?MediAlert 闂佸搫鍊规竟鍡樻櫠濡ゅ懎瀚夋い鎺嗗亾鐟滄澘鍊婚弫?
+                    "text": "MediAlert New Release Published"
                   }
                 },
                 {
@@ -249,11 +227,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*闂佺粯顨呴悧濠傦耿?*\nv${{ env.VERSION }}"
+                      "text": "*Version:*\nv${{ env.VERSION }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*缂備緡鍋夐褔鎮?*\n${{ github.event.inputs.prerelease && '婵☆偅婢樼€氼剝銇愰崒婊勬殰? || '濠殿喗绻愮徊鐣屾閿熺姵鍋? }}"
+                      "text": "*Type:*\n${{ github.event.inputs.prerelease && 'Prerelease' || 'Stable Release' }}"
                     }
                   ]
                 },
@@ -264,7 +242,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "闂佸搫琚崕鍐诧耿?Release"
+                        "text": "View Release"
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ env.VERSION }}"
                     }
