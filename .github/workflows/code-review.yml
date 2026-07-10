@@ -1,4 +1,4 @@
-# 新增: 代码审查工作流
+#
 name: Code Review
 
 on:
@@ -6,13 +6,13 @@ on:
     types: [opened, synchronize]
     branches: [main, develop]
 
-# 并发控制
+#
 concurrency:
   group: code-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  # 代码审查助手
+  #
   code-review:
     name: AI Code Review
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
               });
             }
 
-  # 检查代码冲突
+  #
   conflict-check:
     name: Check Merge Conflicts
     runs-on: ubuntu-latest

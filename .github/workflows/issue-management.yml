@@ -1,5 +1,4 @@
-# 新增: Issue/PR 管理工作流
-name: Issue & PR Management
+#
 
 on:
   issues:
@@ -10,7 +9,7 @@ on:
     types: [created]
 
 jobs:
-  # 自动标记 stale issues
+  #
   stale-issues:
     name: Mark Stale Issues
     runs-on: ubuntu-latest
@@ -30,7 +29,7 @@ jobs:
           exempt-issue-labels: 'pinned,security,bug'
           exempt-pr-labels: 'pinned,security'
 
-  # Issue 自动分类
+  #
   issue-labeler:
     name: Auto Label Issues
     runs-on: ubuntu-latest
@@ -46,32 +45,31 @@ jobs:
             const body = (issue.body || '').toLowerCase();
             const labels = [];
             
-            // 根据标题和内容自动分类
-            if (title.includes('bug') || title.includes('错误') || title.includes('崩溃') || title.includes('crash')) {
+            // 閺嶈宓侀弽鍥暯閸滃苯鍞寸€圭鍤滈崝銊ュ瀻缁?            if (title.includes('bug') || title.includes('闁挎瑨顕?) || title.includes('瀹曗晜绨?) || title.includes('crash')) {
               labels.push('bug');
             }
             
-            if (title.includes('feature') || title.includes('功能') || title.includes('enhancement') || title.includes('请求')) {
+            if (title.includes('feature') || title.includes('閸旂喕鍏?) || title.includes('enhancement') || title.includes('鐠囬攱鐪?)) {
               labels.push('feature');
             }
             
-            if (title.includes('doc') || title.includes('文档') || title.includes('readme')) {
+            if (title.includes('doc') || title.includes('閺傚洦銆?) || title.includes('readme')) {
               labels.push('documentation');
             }
             
-            if (title.includes('performance') || title.includes('性能') || title.includes('slow') || title.includes('卡顿')) {
+            if (title.includes('performance') || title.includes('閹嗗厴') || title.includes('slow') || title.includes('閸楋繝銆?)) {
               labels.push('performance');
             }
             
-            if (title.includes('security') || title.includes('安全') || title.includes('vulnerability')) {
+            if (title.includes('security') || title.includes('鐎瑰鍙?) || title.includes('vulnerability')) {
               labels.push('security');
             }
             
-            if (title.includes('ui') || title.includes('界面') || title.includes('显示') || title.includes('布局')) {
+            if (title.includes('ui') || title.includes('閻ｅ矂娼?) || title.includes('閺勫墽銇?) || title.includes('鐢啫鐪?)) {
               labels.push('ui');
             }
             
-            if (title.includes('database') || title.includes('数据') || title.includes('room') || title.includes('sql')) {
+            if (title.includes('database') || title.includes('閺佺増宓?) || title.includes('room') || title.includes('sql')) {
               labels.push('database');
             }
             
@@ -85,7 +83,7 @@ jobs:
               console.log(`Added labels: ${labels.join(', ')}`);
             }
 
-  # 欢迎新贡献者
+  # step
   welcome:
     name: Welcome Contributors
     runs-on: ubuntu-latest
@@ -98,8 +96,7 @@ jobs:
           script: |
             const creator = context.payload[github.event_name].user.login;
             
-            // 检查用户是否已有贡献
-            const issues = await github.rest.issues.listForRepo({
+            // 濡偓閺屻儳鏁ら幋閿嬫Ц閸氾箑鍑￠張澶庣閻?            const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               creator: creator,
@@ -111,7 +108,7 @@ jobs:
               (issues.data.length === 1 && issues.data[0].number === context.issue.number);
             
             if (isFirstContribution) {
-              const body = `## 🎉 欢迎 @${creator}!\n\n感谢您为 MediAlert 项目做出贡献！\n\n请确保：\n- [ ] 阅读了 [贡献指南](CONTRIBUTING.md)\n- [ ] 遵循了代码规范\n- [ ] 添加了必要的测试\n\n如有任何问题，欢迎随时提问！`;
+              const body = `## 棣冨竴 濞嗐垼绻?@${creator}!\n\n閹扮喕闃块幃銊よ礋 MediAlert 妞ゅ湱娲伴崑姘毉鐠愶紕灏為敍涔梟\n鐠囬鈥樻穱婵撶窗\n- [ ] 闂冨懓顕版禍?[鐠愶紕灏為幐鍥у础](CONTRIBUTING.md)\n- [ ] 闁潧鎯婃禍鍡曞敩閻浇顫夐懠鍍渘- [ ] 濞ｈ濮炴禍鍡楃箑鐟曚胶娈戝ù瀣槸\n\n婵″倹婀佹禒璁崇秿闂傤噣顣介敍灞绢偨鏉╁酣娈㈤弮鑸靛絹闂傤噯绱抈;
               
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
@@ -121,8 +118,7 @@ jobs:
               });
             }
 
-  # PR 合并后清理
-  pr-cleanup:
+  stale-issues:
     name: PR Cleanup
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -137,8 +133,7 @@ jobs:
             if (pr.merged) {
               const branch = pr.head.ref;
               
-              // 不删除 main 和 develop 分支
-              if (branch !== 'main' && branch !== 'develop') {
+              // 娑撳秴鍨归梽?main 閸?develop 閸掑棙鏁?              if (branch !== 'main' && branch !== 'develop') {
                 try {
                   await github.rest.git.deleteRef({
                     owner: context.repo.owner,
