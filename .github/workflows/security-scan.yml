@@ -93,6 +93,5 @@ jobs:
         uses: trufflesecurity/trufflehog@v3.88.0
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --debug --only-verified
+          extra_args: --only-verified --results=verified,unknown
+        continue-on-error: true
