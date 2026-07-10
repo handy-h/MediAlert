@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:

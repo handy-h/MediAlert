@@ -32,6 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:
@@ -81,6 +84,9 @@ jobs:
     needs: code-quality
     timeout-minutes: 30
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:
@@ -137,6 +143,9 @@ jobs:
       matrix:
         api-level: [29, 33, 34]
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:
@@ -182,6 +191,9 @@ jobs:
     needs: [code-quality, unit-tests]
     timeout-minutes: 20
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:
@@ -230,6 +242,9 @@ jobs:
     timeout-minutes: 25
     environment: production
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:
