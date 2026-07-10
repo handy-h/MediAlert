@@ -32,20 +32,30 @@ runs:
         distribution: temurin
         cache: gradle
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v4
-
-    - name: Install SDK Platform ${{ inputs.compile-sdk }}
+    - name: Install Android SDK Packages
       shell: bash
       run: |
-        echo "Installing Android SDK platform ${{ inputs.compile-sdk }}..."
-        echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
-          "platforms;android-${{ inputs.compile-sdk }}" \
-          "build-tools;${{ inputs.compile-sdk }}.0.0" 2>/dev/null || \
-        echo "y" | ${ANDROID_HOME}/tools/bin/sdkmanager \
-          "platforms;android-${{ inputs.compile-sdk }}" \
-          "build-tools;${{ inputs.compile-sdk }}.0.0" 2>/dev/null || \
-        echo "SDK packages may already be installed or sdkmanager path differs"
+        # Use pre-installed Android SDK on ubuntu-latest
+        export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+        export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+        
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        if [ ! -f "$SDKMANAGER" ]; then
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/bin/sdkmanager"
+        fi
+        if [ ! -f "$SDKMANAGER" ]; then
+          SDKMANAGER="$ANDROID_HOME/tools/bin/sdkmanager"
+        fi
+        
+        echo "Using sdkmanager: $SDKMANAGER"
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        
+        # Install required SDK packages
+        yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+        "$SDKMANAGER" "platforms;android-${{ inputs.compile-sdk }}" "build-tools;${{ inputs.compile-sdk }}.0.0" "platform-tools" 2>&1 || true
+        
+        # List installed packages
+        "$SDKMANAGER" --list_installed 2>/dev/null || true
 
     - name: Validate Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v3
