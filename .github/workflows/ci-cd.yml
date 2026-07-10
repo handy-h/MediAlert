@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
@@ -85,7 +85,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
@@ -144,7 +144,7 @@ jobs:
         api-level: [29, 33, 34]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
@@ -192,7 +192,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
@@ -243,7 +243,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
