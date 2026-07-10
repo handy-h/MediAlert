@@ -33,16 +33,19 @@ runs:
         cache: gradle
 
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
 
-    - name: Install Android SDK Packages
+    - name: Install SDK Platform ${{ inputs.compile-sdk }}
       shell: bash
       run: |
-        echo "y" | sdkmanager --install \
+        echo "Installing Android SDK platform ${{ inputs.compile-sdk }}..."
+        echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
           "platforms;android-${{ inputs.compile-sdk }}" \
-          "build-tools;${{ inputs.compile-sdk }}.0.0" \
-          "platform-tools" 2>/dev/null || true
-        sdkmanager --list_installed 2>/dev/null || sdkmanager --list 2>/dev/null | head -30
+          "build-tools;${{ inputs.compile-sdk }}.0.0" 2>/dev/null || \
+        echo "y" | ${ANDROID_HOME}/tools/bin/sdkmanager \
+          "platforms;android-${{ inputs.compile-sdk }}" \
+          "build-tools;${{ inputs.compile-sdk }}.0.0" 2>/dev/null || \
+        echo "SDK packages may already be installed or sdkmanager path differs"
 
     - name: Validate Gradle Wrapper
       uses: gradle/actions/wrapper-validation@v3
