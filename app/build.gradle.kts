@@ -9,9 +9,7 @@ plugins {
 // 解决 C:\ProgramData\Temp 不允许执行导致 Room KSP 编译失败的问题
 kotlin {
     kotlinDaemonJvmArgs = listOf(
-        "-Xmx2048m",
-        "-Dorg.sqlite.tmpdir=C:/Users/gaoga/AppData/Local/Temp",
-        "-Djava.io.tmpdir=C:/Users/gaoga/AppData/Local/Temp"
+        "-Xmx2048m"
     )
 }
 
