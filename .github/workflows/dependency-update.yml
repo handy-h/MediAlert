@@ -18,6 +18,9 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Build Environment
         uses: ./.github/actions/setup-android-sdk
         with:
