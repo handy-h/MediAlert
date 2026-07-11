@@ -93,7 +93,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // CSV Export
-    implementation("com.opencsv:opencsv:5.8")
+    implementation("com.opencsv:opencsv:5.12.0")
 
     // 单元测试依赖 (JVM)
     testImplementation("junit:junit:4.13.2")
