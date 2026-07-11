@@ -15,12 +15,12 @@ kotlin {
 
 android {
     namespace = "com.handy.medialert"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.handy.medialert"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 4
         versionName = "1.2.1"
 
