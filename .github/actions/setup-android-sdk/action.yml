@@ -13,11 +13,11 @@ inputs:
   compile-sdk:
     description: Android compile SDK version
     required: false
-    default: '36'
+    default: '37'
   build-tools:
     description: Android build tools version
     required: false
-    default: '36.0.0'
+    default: '37.0.0'
   cache-read-only:
     description: Whether Gradle cache is read-only
     required: false
