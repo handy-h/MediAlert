@@ -171,7 +171,7 @@ jobs:
 
       - name: Create or Update Dependency Issue
         if: hashFiles('build/dependencyUpdates/report.txt') != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -303,7 +303,7 @@ jobs:
 
       - name: Create Failure Issue
         if: needs.nightly-build.result == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = `Nightly Build Failed - ${new Date().toISOString().split('T')[0]}`;

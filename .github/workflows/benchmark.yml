@@ -93,7 +93,7 @@ jobs:
 
       - name: Comment PR with Benchmark
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const buildTime = ${{ env.BUILD_TIME }};
