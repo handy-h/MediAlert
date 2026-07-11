@@ -407,7 +407,7 @@ jobs:
 
       - name: Notify Slack - Success
         if: steps.status.outputs.status == 'success' && env.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v3
         with:
           payload: |
             {
@@ -461,7 +461,7 @@ jobs:
 
       - name: Notify Slack - Failure
         if: steps.status.outputs.status == 'failure' && env.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v3
         with:
           payload: |
             {
