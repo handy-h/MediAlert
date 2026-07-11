@@ -1,12 +1,12 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// 通过 Kotlin 扩展 API 直接配置 Kotlin daemon JVM 参数（优先级最高）
-// 解决 C:\ProgramData\Temp 不允许执行导致 Room KSP 编译失败的问题
+// 閫氳繃 Kotlin 鎵╁睍 API 鐩存帴閰嶇疆 Kotlin daemon JVM 鍙傛暟锛堜紭鍏堢骇鏈€楂橈級
+// 瑙ｅ喅 C:\ProgramData\Temp 涓嶅厑璁告墽琛屽鑷?Room KSP 缂栬瘧澶辫触鐨勯棶棰?
 kotlin {
     kotlinDaemonJvmArgs = listOf(
         "-Xmx2048m"
@@ -90,23 +90,23 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.8")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.2")
 
     // CSV Export
     implementation("com.opencsv:opencsv:5.12.0")
 
-    // 单元测试依赖 (JVM)
+    // 鍗曞厓娴嬭瘯渚濊禆 (JVM)
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.14.11")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.2")
 
-    // Instrumented 测试依赖 (Android 设备/模拟器)
+    // Instrumented 娴嬭瘯渚濊禆 (Android 璁惧/妯℃嫙鍣?
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:core:1.7.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.room:room-testing:2.8.4")
-    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.2")
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.06.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
