@@ -40,9 +40,17 @@ local.properties
 *.iws
 *.ipr
 out/
+.workbuddy/
+code-context-mcp/
 
 # VS Code
 .vscode/
+
+# ==========================================
+# 构建 / CI 输出日志（自动生成，不可共享）
+# ==========================================
+assemble_debug.txt
+*_output.txt
 
 # ==========================================
 # 签名文件
