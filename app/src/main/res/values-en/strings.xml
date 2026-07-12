@@ -181,7 +181,7 @@
     <string name="csv_import_invalid_package_size">Row %d: invalid package size</string>
     <string name="csv_import_unrecognized_freq">Row %d: unrecognized frequency format \'%s\'</string>
     <string name="csv_import_unknown_error">Row %d: unknown error</string>
-    <string name="csv_import_row_error">Row %d: %s</string>
+    <string name="csv_import_row_error">Row %1$d: %2$s</string>
     <string name="csv_import_file_failed">File read failed: %s</string>
 
     <!-- 操作反馈 -->

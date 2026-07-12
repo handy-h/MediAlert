@@ -23,3 +23,7 @@
 # ── OpenCSV ──
 -dontwarn com.opencsv.**
 -keep class com.opencsv.** { *; }
+
+# ── Apache Commons Logging / Log4j (transitive dependency) ──
+-dontwarn org.apache.commons.logging.impl.**
+-dontwarn org.apache.logging.log4j.**

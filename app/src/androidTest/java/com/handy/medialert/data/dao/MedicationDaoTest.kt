@@ -51,7 +51,7 @@ class MedicationDaoTest {
         assertEquals("厄贝沙坦", result!!.genericName)
         assertEquals("安博维", result.brandName)
         assertEquals("80/12.5", result.specification)
-        assertEquals(14, result.packageSize)
+        assertEquals(14.0, result.packageSize, 0.001)
         assertEquals(28.0, result.currentStock, 0.001)
     }
 

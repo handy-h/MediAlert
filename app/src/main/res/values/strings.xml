@@ -185,7 +185,7 @@
     <string name="csv_import_invalid_package_size">第%d行：每包装数量无效</string>
     <string name="csv_import_unrecognized_freq">第%d行：用药频率格式无法识别「%s」</string>
     <string name="csv_import_unknown_error">第%d行：未知错误</string>
-    <string name="csv_import_row_error">第%d行：%s</string>
+    <string name="csv_import_row_error">第%1$d行：%2$s</string>
     <string name="csv_import_file_failed">文件读取失败：%s</string>
 
     <!-- 操作反馈 -->
