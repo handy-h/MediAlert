@@ -26,12 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      version: ${{ env.VERSION }}
+      version: ${{ steps.validate-version.outputs.version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Validate Version Format
+        id: validate-version
         run: |
           if [ "${{ github.event_name }}" == "push" ]; then
             VERSION=${GITHUB_REF#refs/tags/v}
@@ -46,6 +47,7 @@ jobs:
           fi
           
           echo "Valid version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Check Version in build.gradle.kts
