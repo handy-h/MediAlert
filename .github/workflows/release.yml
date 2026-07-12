@@ -149,7 +149,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, validate]
     timeout-minutes: 10
     permissions:
       contents: write
@@ -177,7 +177,7 @@ jobs:
       - name: Generate Release Notes
         run: |
           cat > release-notes.md << EOF
-          # MediAlert v${{ env.VERSION }}
+          # MediAlert v${{ needs.validate.outputs.version }}
           
           ## Downloads
           - **APK**: Direct install for Android devices
@@ -202,7 +202,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: "MediAlert v${{ env.VERSION }}"
+          name: "MediAlert v${{ needs.validate.outputs.version }}"
           body_path: release-notes.md
           files: |
             ./artifacts/apk/*.apk
@@ -214,7 +214,7 @@ jobs:
   notify:
     name: Send Notification
     runs-on: ubuntu-latest
-    needs: create-release
+    needs: [create-release, validate]
     if: always()
     timeout-minutes: 5
     env:
