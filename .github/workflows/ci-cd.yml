@@ -70,7 +70,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload Detekt SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('build/reports/detekt/detekt.sarif') != ''
         with:
           sarif_file: build/reports/detekt/detekt.sarif
