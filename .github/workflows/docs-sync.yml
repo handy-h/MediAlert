@@ -27,7 +27,7 @@ jobs:
         continue-on-error: true
 
       - name: Check Markdown Format
-        uses: DavidAnson/markdownlint-cli2-action@v15
+        uses: DavidAnson/markdownlint-cli2-action@v24
         with:
           globs: |
             **/*.md
